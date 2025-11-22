@@ -32,9 +32,13 @@ import {
   Wind,
   Zap,
   Minus,
-  UserPlus
+  UserPlus,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  ExternalLink,
+  Wand2,
+  AlertCircle
 } from 'lucide-react';
-import { getAnalytics } from "firebase/analytics";
 
 // --- Firebase Configuration ---
 let firebaseConfig;
@@ -51,19 +55,24 @@ if (typeof __firebase_config !== 'undefined') {
 } 
 
 // 2. Production / Vercel Environment (Manual)
-// If the global configs are missing, we fall back to standard Vite env vars.
+// NOTE: Uncomment this block when deploying to Vercel to read from .env
+
 if (!firebaseConfig) {
-  firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID
-  };
-  // You can change this to 'production-fleet' or any unique ID for your team
-  appId = 'yacht-manager-public'; 
+  try {
+    firebaseConfig = {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+      appId: import.meta.env.VITE_FIREBASE_APP_ID
+    };
+    appId = 'yacht-manager-public'; 
+  } catch (e) {
+    console.warn("Vite env vars not found, skipping production config.");
+  }
 }
+
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -84,6 +93,17 @@ const formatCurrency = (amount, currency = 'EUR') => {
   }).format(amount);
 };
 
+// Helper to clean price strings like "3 459,00 €" -> 3459.00
+const parsePrice = (str) => {
+  if (!str) return 0;
+  // Remove all non-numeric chars except comma and dot
+  let clean = str.replace(/[^\d,.]/g, '');
+  // Replace comma with dot for float parsing if comma is decimal separator
+  clean = clean.replace(',', '.');
+  // If multiple dots exist (thousands separators), keep only the last one
+  return parseFloat(clean) || 0;
+};
+
 // --- Components ---
 
 const GlassCard = ({ children, className = "" }) => (
@@ -92,8 +112,8 @@ const GlassCard = ({ children, className = "" }) => (
   </div>
 );
 
-const Button = ({ children, onClick, variant = 'primary', className = "", icon: Icon }) => {
-  const baseStyles = "inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent";
+const Button = ({ children, onClick, variant = 'primary', className = "", icon: Icon, disabled }) => {
+  const baseStyles = "inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed";
   const variants = {
     primary: "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 border border-cyan-400/20",
     secondary: "bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/30 backdrop-blur-sm",
@@ -103,14 +123,14 @@ const Button = ({ children, onClick, variant = 'primary', className = "", icon: 
   };
 
   return (
-    <button onClick={onClick} className={`${baseStyles} ${variants[variant]} ${className}`}>
+    <button onClick={onClick} disabled={disabled} className={`${baseStyles} ${variants[variant]} ${className}`}>
       {Icon && <Icon size={18} className={children ? "mr-2" : ""} />}
       {children}
     </button>
   );
 };
 
-const Input = ({ label, value, onChange, type = "text", placeholder, prefix }) => (
+const Input = ({ label, value, onChange, onBlur, type = "text", placeholder, prefix, disabled }) => (
   <div className="space-y-1.5 group">
     {label && <label className="block text-xs font-bold text-cyan-300/80 uppercase tracking-widest group-focus-within:text-cyan-400 transition-colors">{label}</label>}
     <div className="relative">
@@ -121,10 +141,12 @@ const Input = ({ label, value, onChange, type = "text", placeholder, prefix }) =
       )}
       <input
         type={type}
-        className={`block w-full rounded-xl bg-slate-900/50 border border-white/10 text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:bg-slate-900/80 transition-all duration-300 py-3 ${prefix ? 'pl-8' : 'pl-4'}`}
+        disabled={disabled}
+        className={`block w-full rounded-xl bg-slate-900/50 border border-white/10 text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:bg-slate-900/80 transition-all duration-300 py-3 ${prefix ? 'pl-8' : 'pl-4'} ${disabled ? 'opacity-50 cursor-wait' : ''}`}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
       />
     </div>
   </div>
@@ -157,11 +179,13 @@ export default function YachtManager() {
   const [user, setUser] = useState(null);
   const [yachts, setYachts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [exchangeRate, setExchangeRate] = useState(25); // Default safe fallback
+  const [exchangeRate, setExchangeRate] = useState(25); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [pax, setPax] = useState(8); // Dynamic Pax State
+  const [pax, setPax] = useState(8); 
   const [isRateLoading, setIsRateLoading] = useState(false);
+  const [isFetchingData, setIsFetchingData] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   
   // Form State
   const [editingId, setEditingId] = useState(null);
@@ -169,6 +193,7 @@ export default function YachtManager() {
     name: '',
     link: '',
     detailsLink: '',
+    imageUrl: '',
     price: '',
     charterPack: '',
     extras: ''
@@ -191,16 +216,14 @@ export default function YachtManager() {
   const fetchRate = async () => {
     setIsRateLoading(true);
     try {
-        // Using a public API for rates
         const response = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
         const data = await response.json();
         if (data && data.rates && data.rates.CZK) {
             setExchangeRate(data.rates.CZK);
-            // Also sync to DB for persistence if we are the first one
             updateRateInDb(data.rates.CZK);
         }
     } catch (e) {
-        console.warn("Failed to auto-fetch rate, using DB or default");
+        console.warn("Failed to auto-fetch rate");
     } finally {
         setIsRateLoading(false);
     }
@@ -214,7 +237,6 @@ export default function YachtManager() {
   useEffect(() => {
     if (!user) return;
 
-    // Fetch Yachts
     const q = query(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_YACHTS));
     const unsubYachts = onSnapshot(q, (snapshot) => {
       const loadedYachts = snapshot.docs.map(doc => ({
@@ -225,12 +247,9 @@ export default function YachtManager() {
       setLoading(false);
     });
 
-    // Fetch Settings (Sync Rate with team)
     const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SETTINGS, DOC_SETTINGS);
     const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
-        // Only update if we haven't manually fetched a fresher one recently? 
-        // Actually, let's trust the DB as the source of truth for the team.
         setExchangeRate(docSnap.data().rate || 25);
       }
     });
@@ -251,6 +270,7 @@ export default function YachtManager() {
       name: formData.name,
       link: formData.link,
       detailsLink: formData.detailsLink,
+      imageUrl: formData.imageUrl,
       price: parseFloat(formData.price) || 0,
       charterPack: parseFloat(formData.charterPack) || 0,
       extras: parseFloat(formData.extras) || 0,
@@ -291,15 +311,150 @@ export default function YachtManager() {
 
   const handleManualRateChange = (val) => {
       setExchangeRate(val);
-      // Debounce could be added here
       updateRateInDb(val);
   }
+
+  // --- SMART PARSING LOGIC (AAAYacht) ---
+  const fetchAaayachtData = async (url) => {
+    if (!url) return;
+    setIsFetchingData(true);
+    setFetchError(false);
+
+    let htmlContent = "";
+    let fetchSuccess = false;
+
+    try {
+      // Attempt 1: AllOrigins
+      try {
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const response = await fetch(proxyUrl);
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.contents) {
+                htmlContent = data.contents;
+                fetchSuccess = true;
+            }
+        }
+      } catch (err1) { console.warn("Proxy 1 failed"); }
+
+      // Attempt 2: CorsProxy
+      if (!fetchSuccess) {
+          try {
+            const backupProxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+            const response = await fetch(backupProxy);
+            if (response.ok) {
+                htmlContent = await response.text();
+                fetchSuccess = true;
+            }
+          } catch (err2) { console.warn("Proxy 2 failed"); }
+      }
+
+      if (!fetchSuccess || !htmlContent) {
+          throw new Error("All proxies failed");
+      }
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlContent, "text/html");
+
+      // 1. Name
+      const nameEl = doc.querySelector('h1.yacht-name-header');
+      const name = nameEl ? nameEl.textContent.trim() : "";
+
+      // 2. Image & Tech Specs URL (Derived from Image ID)
+      const imgEl = doc.querySelector('meta[property="og:image"]');
+      const image = imgEl ? imgEl.getAttribute('content') : "";
+      
+      let techSpecsUrl = "";
+      if (image) {
+          // Extract ID from image URL: .../rest/yacht/37872968/pictures/...
+          const idMatch = image.match(/yacht\/(\d+)\//);
+          if (idMatch && idMatch[1]) {
+              techSpecsUrl = `https://ws.nausys.com/CBMS-external/rest/yacht/${idMatch[1]}/html`;
+          }
+      }
+
+      // 3. Price (Robust)
+      // Look for the discount list item
+      const priceContainer = doc.querySelector('.price-after-discount');
+      let price = 0;
+      if (priceContainer) {
+          // Get all text content, remove "Cena po slevě" etc, look for the number
+          const text = priceContainer.textContent;
+          // Regex for number with comma decimals: 3 459,00
+          const match = text.match(/([\d\s]+[,.]\d{2})/);
+          if (match && match[1]) {
+              price = parsePrice(match[1]);
+          }
+      }
+
+      // 4. Charter Pack (Robust)
+      let charterPack = 0;
+      // Scan all elements for text "Charter package" or "Transit log"
+      const allElements = Array.from(doc.querySelectorAll('*'));
+      // Find the specific leaf node (text container)
+      const labelNode = allElements.find(el => 
+          el.children.length === 0 && 
+          (el.textContent.toLowerCase().includes('charter package') || 
+           el.textContent.toLowerCase().includes('transit log'))
+      );
+
+      if (labelNode) {
+         // Go up to the row container
+         const parentRow = labelNode.closest('.row');
+         if (parentRow) {
+             // Look for the BOLD tag in that row (usually contains the price)
+             const bTag = parentRow.querySelector('b');
+             if (bTag) {
+                 charterPack = parsePrice(bTag.textContent);
+             }
+         }
+      }
+
+      // Apply to state
+      setFormData(prev => ({
+          ...prev,
+          name: name || prev.name,
+          imageUrl: image || prev.imageUrl,
+          detailsLink: techSpecsUrl || prev.detailsLink, // Auto-filled Tech Specs
+          price: price || prev.price,
+          charterPack: charterPack || prev.charterPack,
+          link: url
+      }));
+
+    } catch (error) {
+        console.error("Failed to fetch yacht data", error);
+        setFetchError(true);
+        setTimeout(() => setFetchError(false), 3000);
+    } finally {
+        setIsFetchingData(false);
+    }
+  };
+
+  // Trigger on Blur if it looks like an Aaayacht link
+  const handleLinkBlur = (e) => {
+    const url = e.target.value;
+    if (!url) return;
+
+    if (url.includes('aaayacht.cz')) {
+        fetchAaayachtData(url);
+    } else if (url.includes('nausys') || url.includes('booking-manager')) {
+        // Existing Nausys Image Logic
+        const idMatch = url.match(/(?:yacht\/|yachtId=|id=)(\d+)/);
+        if (idMatch && idMatch[1]) {
+            const nausysImage = `https://ws.nausys.com/CBMS-external/rest/yacht/${idMatch[1]}/pictures/main.jpg`;
+            if (!formData.imageUrl) {
+                setFormData(prev => ({ ...prev, imageUrl: nausysImage }));
+            }
+        }
+    }
+  };
 
   const openEdit = (yacht) => {
     setFormData({
       name: yacht.name,
       link: yacht.link || '',
       detailsLink: yacht.detailsLink || '',
+      imageUrl: yacht.imageUrl || '',
       price: yacht.price,
       charterPack: yacht.charterPack,
       extras: yacht.extras
@@ -314,7 +469,7 @@ export default function YachtManager() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', link: '', detailsLink: '', price: '', charterPack: '', extras: '' });
+    setFormData({ name: '', link: '', detailsLink: '', imageUrl: '', price: '', charterPack: '', extras: '' });
     setEditingId(null);
   };
 
@@ -482,7 +637,12 @@ export default function YachtManager() {
             <table className="min-w-full text-left">
               <thead>
                 <tr className="bg-white/5 border-b border-white/10">
-                  <th className="sticky left-0 z-20 bg-slate-900/95 backdrop-blur px-6 py-5 text-xs font-extrabold text-slate-400 uppercase tracking-wider w-64 border-r border-white/10">
+                   {/* Image Column Header */}
+                   <th className="sticky left-0 z-20 bg-slate-900/95 backdrop-blur px-4 py-5 text-xs font-extrabold text-slate-400 uppercase tracking-wider w-40 border-r border-white/10 text-center">
+                    <ImageIcon size={16} className="mx-auto"/>
+                  </th>
+
+                  <th className="px-6 py-5 text-xs font-extrabold text-slate-400 uppercase tracking-wider w-64">
                     Vessel Info
                   </th>
                   <th className="px-4 py-5 text-right text-xs font-extrabold text-slate-500 uppercase tracking-wider w-32">Boat Price</th>
@@ -492,7 +652,6 @@ export default function YachtManager() {
                      <span className="flex items-center justify-end gap-1"><DollarSign size={12}/> Total (EUR)</span>
                   </th>
                   
-                  {/* Dynamic Split Column */}
                   <th className="px-4 py-5 text-center w-56 bg-purple-500/5 border-l border-white/5">
                        <div className="flex flex-col items-center">
                            <span className="text-xs font-extrabold text-purple-300 uppercase tracking-wider flex items-center gap-1">
@@ -521,14 +680,43 @@ export default function YachtManager() {
                     
                     return (
                       <tr key={yacht.id} className="group hover:bg-white/[0.02] transition-colors">
-                        {/* Sticky Column: Name */}
-                        <td className="sticky left-0 z-10 bg-slate-900/95 border-r border-white/5 px-6 py-4 group-hover:bg-slate-800/95 transition-colors">
+                        
+                        {/* Clickable Image Column */}
+                        <td className="sticky left-0 z-10 bg-slate-900/95 border-r border-white/5 px-4 py-4 text-center">
+                           <div className="relative h-20 w-32 rounded-lg bg-slate-800 border border-white/10 mx-auto group-hover:border-cyan-500/50 transition-all duration-300 overflow-hidden">
+                             {yacht.imageUrl ? (
+                               <a 
+                                 href={yacht.imageUrl} 
+                                 target="_blank" 
+                                 rel="noreferrer"
+                                 className="block w-full h-full cursor-pointer"
+                               >
+                                 <img 
+                                   src={yacht.imageUrl} 
+                                   alt={yacht.name} 
+                                   className="h-full w-full object-cover hover:opacity-80 transition-opacity"
+                                   onError={(e) => {
+                                     e.target.onerror = null;
+                                     e.target.style.display = 'none';
+                                     e.target.parentElement.nextSibling.style.display = 'flex';
+                                   }}
+                                 />
+                               </a>
+                             ) : null}
+                             <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-slate-600 pointer-events-none" style={{ display: yacht.imageUrl ? 'none' : 'flex' }}>
+                                <Anchor size={24} />
+                             </div>
+                           </div>
+                        </td>
+
+                        {/* Info Column */}
+                        <td className="px-6 py-4">
                           <div className="flex flex-col">
                             <div className="font-bold text-white text-lg truncate tracking-tight flex items-center gap-2">
                               {yacht.link ? (
                                 <a href={yacht.link} target="_blank" rel="noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-2">
                                   {yacht.name}
-                                  <span className="opacity-0 group-hover:opacity-100 text-slate-500 text-[10px] transition-opacity">↗</span>
+                                  <ExternalLink size={12} className="opacity-50" />
                                 </a>
                               ) : yacht.name}
                             </div>
@@ -591,26 +779,57 @@ export default function YachtManager() {
         title={editingId ? "Edit Vessel" : "Commission Vessel"}
       >
         <div className="space-y-6">
-          <Input 
-            label="Vessel Name" 
-            placeholder="e.g. Bavaria 46 Cataleya"
-            value={formData.name} 
-            onChange={(v) => setFormData({...formData, name: v})} 
-          />
           
-          <div className="grid grid-cols-2 gap-4">
-             <Input 
-              label="Tech Specs URL" 
-              placeholder="https://..."
-              value={formData.detailsLink} 
-              onChange={(v) => setFormData({...formData, detailsLink: v})} 
-            />
-            <Input 
-              label="Booking URL" 
-              placeholder="https://..."
-              value={formData.link} 
-              onChange={(v) => setFormData({...formData, link: v})} 
-            />
+          {/* Top Section with Larger Image Preview */}
+          <div className="flex flex-col sm:flex-row items-start gap-4">
+             <div className="relative h-32 w-48 rounded-xl bg-slate-950 border border-white/10 flex-shrink-0 overflow-hidden shadow-lg">
+                {formData.imageUrl ? (
+                   <a href={formData.imageUrl} target="_blank" rel="noreferrer">
+                     <img src={formData.imageUrl} className="h-full w-full object-cover hover:opacity-75 transition-opacity" alt="Preview" onError={(e) => e.target.style.opacity = 0.3} />
+                   </a>
+                ) : (
+                   <div className="h-full w-full flex items-center justify-center text-slate-600">
+                      {isFetchingData ? <RefreshCw className="animate-spin" /> : <ImageIcon size={32} />}
+                   </div>
+                )}
+             </div>
+             <div className="flex-1 space-y-4 w-full">
+                <Input 
+                  label="Booking URL (Auto-Fills Data)" 
+                  placeholder="Paste Aaayacht link here..."
+                  value={formData.link} 
+                  onChange={(v) => setFormData({...formData, link: v})}
+                  onBlur={handleLinkBlur}
+                  prefix={isFetchingData ? <RefreshCw className="animate-spin" size={14} /> : fetchError ? <AlertCircle className="text-red-500" size={14} /> : <Wand2 size={14} className="text-purple-400" />}
+                  disabled={isFetchingData}
+                />
+                <Input 
+                  label="Vessel Name" 
+                  placeholder="e.g. Bavaria 46 Cataleya"
+                  value={formData.name} 
+                  onChange={(v) => setFormData({...formData, name: v})} 
+                  disabled={isFetchingData}
+                />
+             </div>
+          </div>
+
+          <div className="space-y-4">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input 
+                  label="Tech Specs URL" 
+                  placeholder="https://..."
+                  value={formData.detailsLink} 
+                  onChange={(v) => setFormData({...formData, detailsLink: v})} 
+                  prefix={<LinkIcon size={14} />}
+                />
+                <Input 
+                  label="Image Source" 
+                  placeholder="http://.../main.jpg"
+                  value={formData.imageUrl} 
+                  onChange={(v) => setFormData({...formData, imageUrl: v})} 
+                  prefix={<ImageIcon size={14} />}
+              />
+             </div>
           </div>
 
           <div className="bg-slate-950/50 p-4 rounded-xl border border-white/5">
@@ -647,7 +866,7 @@ export default function YachtManager() {
 
           <div className="pt-4 flex items-center justify-end gap-3">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleSaveYacht} icon={Save}>
+            <Button variant="primary" onClick={handleSaveYacht} icon={Save} disabled={isFetchingData}>
               {editingId ? "Save Changes" : "AddTo Fleet"}
             </Button>
           </div>
