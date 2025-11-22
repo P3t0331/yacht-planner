@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -6,7 +6,6 @@ import {
   onAuthStateChanged, 
   signInWithCustomToken,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut
 } from 'firebase/auth';
 import { 
@@ -46,14 +45,14 @@ import {
   Compass,
   Lock,
   LogOut,
-  User
+  User,
+  Skull
 } from 'lucide-react';
 
 // --- Firebase Configuration ---
 let firebaseConfig;
 let appId;
 
-// 1. AI / Sandbox Environment (Automatic)
 if (typeof __firebase_config !== 'undefined') {
   try {
     firebaseConfig = JSON.parse(__firebase_config);
@@ -62,26 +61,6 @@ if (typeof __firebase_config !== 'undefined') {
     console.error("Error parsing config", e);
   }
 } 
-
-// 2. Production / Vercel Environment (Manual)
-// NOTE: Uncomment this block when deploying to Vercel to read from .env
-
-if (!firebaseConfig) {
-  try {
-    firebaseConfig = {
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: import.meta.env.VITE_FIREBASE_APP_ID
-    };
-    appId = 'yacht-manager-public'; 
-  } catch (e) {
-    console.warn("Vite env vars not found, skipping production config.");
-  }
-}
-
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -102,7 +81,6 @@ const formatCurrency = (amount, currency = 'EUR') => {
   }).format(amount);
 };
 
-// Helper to clean price strings
 const parsePrice = (str) => {
   if (!str) return 0;
   let clean = str.replace(/[^\d,.]/g, '');
@@ -110,16 +88,60 @@ const parsePrice = (str) => {
   return parseFloat(clean) || 0;
 };
 
+// --- CSS Animations (Injected Style) ---
+const GlobalStyles = () => (
+  <style>{`
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-3px); }
+      100% { transform: translateY(0px); }
+    }
+    @keyframes breathe {
+      0% { opacity: 0.95; transform: scale(0.995); }
+      50% { opacity: 1; transform: scale(1.005); }
+      100% { opacity: 0.95; transform: scale(0.995); }
+    }
+    @keyframes chaos-blink {
+      0% { background-color: #ef4444; filter: invert(0); }
+      25% { background-color: #3b82f6; filter: invert(1); }
+      50% { background-color: #eab308; filter: invert(0); }
+      75% { background-color: #a855f7; filter: invert(1); }
+      100% { background-color: #ef4444; filter: invert(0); }
+    }
+    
+    /* Targeted Classes instead of Global Selectors to fix layout issues */
+    .floating {
+      animation: float 6s ease-in-out infinite;
+    }
+    
+    .breathing {
+      transition: all 0.3s ease;
+    }
+    .breathing:hover, .breathing:focus-within {
+      animation: breathe 1.5s ease-in-out infinite;
+    }
+
+    .slot-machine-overlay.chaos-mode {
+      animation: chaos-blink 0.5s steps(4) infinite;
+    }
+
+    .reel-blur {
+      filter: blur(1px);
+      transform: scale(1.1);
+    }
+  `}</style>
+);
+
 // --- Components ---
 
 const GlassCard = ({ children, className = "" }) => (
-  <div className={`bg-slate-900/40 backdrop-blur-md border border-amber-500/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] rounded-2xl ${className}`}>
+  <div className={`bg-slate-900/40 backdrop-blur-md border border-amber-500/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] rounded-2xl floating ${className}`}>
     {children}
   </div>
 );
 
 const Button = ({ children, onClick, variant = 'primary', className = "", icon: Icon, disabled }) => {
-  const baseStyles = "inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyles = "inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed breathing";
   const variants = {
     primary: "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 border border-amber-400/20",
     secondary: "bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/30 backdrop-blur-sm",
@@ -137,7 +159,7 @@ const Button = ({ children, onClick, variant = 'primary', className = "", icon: 
 };
 
 const Input = ({ label, value, onChange, onBlur, type = "text", placeholder, prefix, disabled }) => (
-  <div className="space-y-1.5 group w-full">
+  <div className="space-y-1.5 group w-full breathing">
     {label && <label className="block text-xs font-bold text-amber-500/80 uppercase tracking-widest group-focus-within:text-amber-400 transition-colors">{label}</label>}
     <div className="relative">
       {prefix && (
@@ -165,7 +187,7 @@ const Modal = ({ isOpen, onClose, title, children, size = "lg" }) => {
     <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm">
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="fixed inset-0 bg-black/80 transition-opacity" onClick={onClose}></div>
-        <div className={`relative bg-slate-900 border border-amber-500/20 rounded-3xl shadow-2xl transform transition-all ${maxWidth} w-full overflow-hidden`}>
+        <div className={`relative bg-slate-900 border border-amber-500/20 rounded-3xl shadow-2xl transform transition-all ${maxWidth} w-full overflow-hidden floating`}>
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500"></div>
           <div className="p-6 sm:p-8">
             <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-2">
@@ -180,11 +202,120 @@ const Modal = ({ isOpen, onClose, title, children, size = "lg" }) => {
   );
 };
 
+// --- Slot Machine Component ---
+const SlotMachine = ({ onWin }) => {
+  const [spinning, setSpinning] = useState(false);
+  const [message, setMessage] = useState("SPIN TO BOARD THE SHIP");
+  const [chaosMode, setChaosMode] = useState(false);
+  const [cooldown, setCooldown] = useState(false);
+  const [spinCount, setSpinCount] = useState(0);
+  
+  const symbols = ['🚢', '💀', '⚓', '💰'];
+  const [reels, setReels] = useState(['⚓', '⚓', '⚓']);
+
+  const spin = () => {
+    if (spinning || cooldown) return;
+    setSpinning(true);
+    setMessage("ROLLING...");
+
+    // Determine outcome
+    let result;
+    // Rigged logic: If we have already spun 3 times (so this is the 4th+), we win.
+    if (spinCount >= 3) {
+        result = ['🚢', '🚢', '🚢'];
+    } else {
+        result = [
+            symbols[Math.floor(Math.random() * symbols.length)],
+            symbols[Math.floor(Math.random() * symbols.length)],
+            symbols[Math.floor(Math.random() * symbols.length)]
+        ];
+        // Edge case: If random actually gives 3 ships early, we let it pass!
+    }
+
+    // Animation Loop to simulate spinning reels
+    const animationInterval = setInterval(() => {
+       setReels([
+          symbols[Math.floor(Math.random() * symbols.length)],
+          symbols[Math.floor(Math.random() * symbols.length)],
+          symbols[Math.floor(Math.random() * symbols.length)]
+       ]);
+    }, 80); // Rapid change every 80ms
+
+    setTimeout(() => {
+      clearInterval(animationInterval);
+      setReels(result);
+      setSpinning(false);
+      setSpinCount(prev => prev + 1);
+      
+      if (result[0] === '🚢' && result[1] === '🚢' && result[2] === '🚢') {
+        setMessage("PERMISSION GRANTED!");
+        setTimeout(onWin, 1000);
+      } else {
+        setMessage("ACCESS DENIED!");
+        setChaosMode(true);
+        setCooldown(true);
+        
+        setTimeout(() => {
+          setChaosMode(false);
+          setCooldown(false);
+          setMessage("TRY AGAIN, CAPTAIN");
+        }, 3000);
+      }
+    }, 2000); // 2 second spin duration
+  };
+
+  return (
+    <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-900 text-white slot-machine-overlay h-screen w-screen overflow-hidden ${chaosMode ? 'chaos-mode' : ''}`}>
+      <GlobalStyles />
+      <div className="mb-8 text-center space-y-2 floating">
+        <h1 className="text-4xl font-black tracking-[0.3em] text-amber-500">CAPTAIN'S CHALLENGE</h1>
+        <p className="text-sm text-slate-400 font-mono tracking-widest uppercase">Security Clearance Required</p>
+      </div>
+
+      <div className="bg-slate-800 p-6 rounded-2xl border-4 border-amber-600 shadow-2xl relative overflow-hidden floating">
+        <div className="absolute top-0 left-0 w-full h-1 bg-white/20 animate-pulse"></div>
+        <div className="flex gap-4 mb-6 justify-center">
+          {reels.map((symbol, i) => (
+            <div key={i} className="w-24 h-32 bg-slate-950 border border-slate-700 rounded-lg flex items-center justify-center text-6xl overflow-hidden relative shadow-inner">
+               <div className={`transition-all duration-100 ${spinning ? 'reel-blur' : ''}`}>
+                 {symbol}
+               </div>
+            </div>
+          ))}
+        </div>
+        
+        <div className="text-center">
+          <button 
+            onClick={spin} 
+            disabled={spinning || cooldown}
+            className={`w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all breathing
+              ${cooldown 
+                ? 'bg-red-600 text-white cursor-not-allowed' 
+                : 'bg-gradient-to-b from-amber-400 to-amber-600 text-black hover:scale-105 active:scale-95'
+              } shadow-lg`}
+          >
+            {cooldown ? "SYSTEM LOCKED (3s)" : spinning ? "SPINNING..." : "SPIN"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-8 font-mono text-xl font-bold text-amber-400 animate-pulse">
+        {message}
+      </div>
+      
+      <div className="mt-4 text-xs text-slate-600">
+        {spinCount < 3 ? `Authentication attempt ${spinCount + 1}/4` : "System Override Ready"}
+      </div>
+    </div>
+  );
+};
+
 // --- Main Application Component ---
 
 export default function YachtManager() {
+  const [accessGranted, setAccessGranted] = useState(false); 
   const [user, setUser] = useState(null);
-  const [isCaptain, setIsCaptain] = useState(false); // Role State
+  const [isCaptain, setIsCaptain] = useState(false); 
   const [yachts, setYachts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exchangeRate, setExchangeRate] = useState(25); 
@@ -197,7 +328,6 @@ export default function YachtManager() {
   const [fetchError, setFetchError] = useState(false);
   
   // Auth Form State
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -216,15 +346,14 @@ export default function YachtManager() {
 
   // --- Authentication ---
   useEffect(() => {
-    // Listen for auth changes
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // If user is NOT anonymous, they are a Captain (authenticated via email)
         setIsCaptain(!currentUser.isAnonymous);
       } else {
-        // If no user, sign in anonymously as Guest automatically
-        signInAnonymously(auth).catch((e) => console.error("Guest login failed", e));
+        signInAnonymously(auth).catch((e) => {
+            console.error("Guest login failed", e);
+        });
         setIsCaptain(false);
       }
     });
@@ -241,26 +370,17 @@ export default function YachtManager() {
       setAuthEmail('');
       setAuthPassword('');
     } catch (error) {
-      setAuthError(error.message.replace('Firebase: ', ''));
-    }
-  };
-
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setAuthError('');
-    try {
-      await createUserWithEmailAndPassword(auth, authEmail, authPassword);
-      setIsAuthModalOpen(false);
-      setAuthEmail('');
-      setAuthPassword('');
-    } catch (error) {
-      setAuthError(error.message.replace('Firebase: ', ''));
+      console.error("Auth Error:", error);
+      if (error.code === 'auth/operation-not-allowed') {
+          setAuthError('Configuration Error: Enable "Email/Password" in Firebase Console.');
+      } else {
+          setAuthError("Invalid credentials. Only authorized Captains may enter.");
+      }
     }
   };
 
   const handleLogout = async () => {
     await signOut(auth);
-    // Auto re-login as guest handled by onAuthStateChanged
   };
 
   // --- Auto-Fetch Exchange Rate ---
@@ -271,7 +391,7 @@ export default function YachtManager() {
         const data = await response.json();
         if (data && data.rates && data.rates.CZK) {
             setExchangeRate(data.rates.CZK);
-            if (isCaptain) updateRateInDb(data.rates.CZK); // Only captain can persist rate
+            if (isCaptain) updateRateInDb(data.rates.CZK); 
         }
     } catch (e) {
         console.warn("Failed to auto-fetch rate");
@@ -314,7 +434,7 @@ export default function YachtManager() {
   // --- Handlers ---
 
   const handleSaveYacht = async () => {
-    if (!isCaptain) return; // Security check
+    if (!isCaptain) return; 
     if (!formData.name) return;
 
     const payload = {
@@ -364,7 +484,7 @@ export default function YachtManager() {
 
   const handleManualRateChange = (val) => {
       setExchangeRate(val);
-      updateRateInDb(val); // Will check isCaptain internally
+      updateRateInDb(val); 
   }
 
   // --- SMART PARSING LOGIC (AAAYacht) ---
@@ -518,7 +638,11 @@ export default function YachtManager() {
     );
   }, [yachts, searchTerm]);
 
-  // --- Render ---
+  // --- Render Logic ---
+
+  if (!accessGranted) {
+    return <SlotMachine onWin={() => setAccessGranted(true)} />;
+  }
 
   if (!user) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white gap-4">
@@ -532,7 +656,7 @@ export default function YachtManager() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-[#0f172a] to-black text-slate-200 font-sans selection:bg-amber-500/30 selection:text-amber-200 pb-20">
-      
+      <GlobalStyles />
       {/* Ambient Background Glows */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-blue-900/20 rounded-full blur-[120px] opacity-50"></div>
@@ -545,7 +669,7 @@ export default function YachtManager() {
           <div className="flex justify-between h-20 items-center">
             
             {/* Logo Area */}
-            <div className="flex items-center gap-3 group cursor-default">
+            <div className="flex items-center gap-3 group cursor-default floating">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full blur opacity-20 group-hover:opacity-50 transition-opacity duration-500"></div>
                 <div className="relative bg-slate-900 p-2.5 rounded-full border border-amber-500/30">
@@ -563,7 +687,7 @@ export default function YachtManager() {
             {/* Controls */}
             <div className="flex items-center gap-6">
               
-              {/* Live Rate Ticker (Read Only for Guest, Editable for Captain) */}
+              {/* Live Rate Ticker */}
               <div className="hidden md:flex flex-col items-end">
                 <div className="flex items-center gap-2 text-xs font-bold text-amber-500/70 uppercase tracking-wider mb-1">
                    <TrendingUp size={12} />
@@ -572,7 +696,7 @@ export default function YachtManager() {
                      <RefreshCw size={12} />
                    </button>
                 </div>
-                <div className="flex items-center bg-white/5 rounded-lg p-1 border border-white/10 hover:border-amber-500/50 transition-colors">
+                <div className="flex items-center bg-white/5 rounded-lg p-1 border border-white/10 hover:border-amber-500/50 transition-colors breathing">
                   <span className="px-2 text-slate-400 text-sm">€1 =</span>
                   <input 
                     type="number" 
@@ -595,7 +719,7 @@ export default function YachtManager() {
                   </Button>
                   <button 
                     onClick={handleLogout}
-                    className="p-2.5 rounded-full bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all"
+                    className="p-2.5 rounded-full bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all breathing"
                     title="Captain Logout"
                   >
                     <LogOut size={20} />
@@ -603,8 +727,8 @@ export default function YachtManager() {
                 </div>
               ) : (
                 <button 
-                  onClick={() => { setAuthMode('login'); setIsAuthModalOpen(true); }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-amber-500/10 text-slate-400 hover:text-amber-400 border border-white/5 hover:border-amber-500/30 transition-all text-sm font-bold uppercase tracking-wide"
+                  onClick={() => { setIsAuthModalOpen(true); }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-amber-500/10 text-slate-400 hover:text-amber-400 border border-white/5 hover:border-amber-500/30 transition-all text-sm font-bold uppercase tracking-wide breathing"
                 >
                   <Lock size={14} /> Captain Login
                 </button>
@@ -617,7 +741,7 @@ export default function YachtManager() {
       {/* Main Interface */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
         
-        {/* Controller Bar (Pax + Search) */}
+        {/* Controller Bar */}
         <GlassCard className="p-4 md:p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 
@@ -628,7 +752,7 @@ export default function YachtManager() {
                         Guest Count
                     </label>
                     <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-3 bg-slate-950/50 p-1.5 rounded-xl border border-white/10">
+                        <div className="flex items-center gap-3 bg-slate-950/50 p-1.5 rounded-xl border border-white/10 breathing">
                             <button 
                                 onClick={() => setPax(p => Math.max(1, p - 1))}
                                 className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-amber-500/20 hover:text-amber-300 transition-colors text-slate-400"
@@ -647,7 +771,7 @@ export default function YachtManager() {
                             </button>
                         </div>
                         
-                        <div className="hidden sm:block flex-1">
+                        <div className="hidden sm:block flex-1 breathing">
                              <input 
                                 type="range" 
                                 min="1" 
@@ -671,7 +795,7 @@ export default function YachtManager() {
                         <Search size={14} />
                         Find Vessel
                     </label>
-                    <div className="relative group">
+                    <div className="relative group breathing">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                              <Search className="h-5 w-5 text-slate-500 group-focus-within:text-amber-400 transition-colors" />
                         </div>
@@ -692,7 +816,6 @@ export default function YachtManager() {
             <table className="min-w-full text-left">
               <thead>
                 <tr className="bg-white/5 border-b border-white/10">
-                   {/* Image Column Header */}
                    <th className="sticky left-0 z-20 bg-slate-900/95 backdrop-blur px-4 py-5 text-xs font-extrabold text-slate-400 uppercase tracking-wider w-40 border-r border-white/10 text-center">
                     <ImageIcon size={16} className="mx-auto"/>
                   </th>
@@ -715,7 +838,6 @@ export default function YachtManager() {
                        </div>
                   </th>
 
-                  {/* Hide Actions column for Guests */}
                   {isCaptain && <th className="px-6 py-5 text-right bg-slate-900/30"><span className="sr-only">Actions</span></th>}
                 </tr>
               </thead>
@@ -739,7 +861,7 @@ export default function YachtManager() {
                         
                         {/* Clickable Image Column */}
                         <td className="sticky left-0 z-10 bg-slate-900/95 border-r border-white/5 px-4 py-4 text-center">
-                           <div className="relative h-20 w-32 rounded-lg bg-slate-800 border border-white/10 mx-auto group-hover:border-amber-500/50 transition-all duration-300 overflow-hidden">
+                           <div className="relative h-20 w-32 rounded-lg bg-slate-800 border border-white/10 mx-auto group-hover:border-amber-500/50 transition-all duration-300 overflow-hidden breathing">
                              {yacht.imageUrl ? (
                                <a 
                                  href={yacht.imageUrl} 
@@ -765,7 +887,6 @@ export default function YachtManager() {
                            </div>
                         </td>
 
-                        {/* Info Column */}
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
                             <div className="font-bold text-white text-lg truncate tracking-tight flex items-center gap-2">
@@ -788,14 +909,12 @@ export default function YachtManager() {
                         <td className="px-4 py-4 text-slate-400 text-right font-mono text-sm group-hover:text-slate-200 transition-colors">{formatCurrency(yacht.charterPack)}</td>
                         <td className="px-4 py-4 text-slate-400 text-right font-mono text-sm group-hover:text-slate-200 transition-colors">{formatCurrency(yacht.extras)}</td>
                         
-                        {/* Total EUR */}
                         <td className="px-4 py-4 text-right bg-amber-500/[0.05]">
                             <div className="font-mono font-bold text-amber-400 text-base shadow-amber-500/50 drop-shadow-sm">
                                 {formatCurrency(totalEur)}
                             </div>
                         </td>
 
-                        {/* Split Dynamic */}
                         <td className="px-4 py-4 bg-blue-500/[0.02] border-l border-white/5">
                             <div className="flex flex-col items-center gap-1">
                                 <div className="text-xs text-slate-400 font-mono">{formatCurrency(perPersonEur)} <span className="text-[9px] text-slate-600">EUR</span></div>
@@ -805,7 +924,6 @@ export default function YachtManager() {
                             </div>
                         </td>
 
-                        {/* Actions (Protected) */}
                         {isCaptain && (
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
@@ -837,8 +955,6 @@ export default function YachtManager() {
         title={editingId ? "Edit Option" : "Add Charter Option"}
       >
         <div className="space-y-6">
-          
-          {/* Top Section with Larger Image Preview */}
           <div className="flex flex-col sm:flex-row items-start gap-4">
              <div className="relative h-32 w-48 rounded-xl bg-slate-950 border border-white/10 flex-shrink-0 overflow-hidden shadow-lg">
                 {formData.imageUrl ? (
@@ -931,14 +1047,14 @@ export default function YachtManager() {
         </div>
       </Modal>
 
-      {/* Auth Modal */}
+      {/* Auth Modal (Login Only) */}
       <Modal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        title={authMode === 'login' ? 'Captain Login' : 'New Captain Registration'}
+        title="Captain Login"
         size="sm"
       >
-        <form onSubmit={authMode === 'login' ? handleLogin : handleRegister} className="space-y-6">
+        <form onSubmit={handleLogin} className="space-y-6">
           {authError && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm text-center">
               {authError}
@@ -965,19 +1081,9 @@ export default function YachtManager() {
           </div>
 
           <div className="pt-2">
-            <Button variant="primary" className="w-full" onClick={authMode === 'login' ? handleLogin : handleRegister}>
-              {authMode === 'login' ? 'Board the Ship' : 'Commission Account'}
+            <Button variant="primary" className="w-full" onClick={handleLogin}>
+              Board the Ship
             </Button>
-          </div>
-
-          <div className="text-center">
-            <button 
-              type="button"
-              onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); }}
-              className="text-xs text-slate-500 hover:text-amber-400 transition-colors uppercase tracking-widest font-bold"
-            >
-              {authMode === 'login' ? 'Need an account? Register' : 'Have an account? Login'}
-            </button>
           </div>
         </form>
       </Modal>
