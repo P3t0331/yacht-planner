@@ -61,6 +61,10 @@ if (typeof __firebase_config !== 'undefined') {
     console.error("Error parsing config", e);
   }
 } 
+
+// 2. Production / Vercel Environment (Manual)
+// NOTE: Uncomment this block when deploying to Vercel to read from .env
+
 if (!firebaseConfig) {
   try {
     firebaseConfig = {
@@ -76,6 +80,7 @@ if (!firebaseConfig) {
     console.warn("Vite env vars not found, skipping production config.");
   }
 }
+
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -106,16 +111,69 @@ const parsePrice = (str) => {
 // --- CSS Animations (Injected Style) ---
 const GlobalStyles = () => (
   <style>{`
-    @keyframes float {
+    /* --- CRAZY ANIMATIONS START --- */
+    
+    /* Constant "Alive" Wiggle for Everything */
+    @keyframes constant-wiggle {
+      0%, 100% { transform: rotate(-0.5deg) translate(0, 0); }
+      25% { transform: rotate(0.5deg) translate(1px, 1px); }
+      50% { transform: rotate(-0.25deg) translate(-1px, 2px); }
+      75% { transform: rotate(0.25deg) translate(1px, -1px); }
+    }
+
+    /* Drifting for larger blocks */
+    @keyframes drift {
       0% { transform: translateY(0px); }
-      50% { transform: translateY(-3px); }
+      50% { transform: translateY(-5px); }
       100% { transform: translateY(0px); }
     }
-    @keyframes breathe {
-      0% { opacity: 0.95; transform: scale(0.995); }
-      50% { opacity: 1; transform: scale(1.005); }
-      100% { opacity: 0.95; transform: scale(0.995); }
+
+    /* Color cycle for images/icons */
+    @keyframes hue-rotate-slow {
+      0% { filter: hue-rotate(0deg); }
+      100% { filter: hue-rotate(360deg); }
     }
+
+    /* Breathing effect */
+    @keyframes breathe {
+      0% { opacity: 0.9; transform: scale(0.98); }
+      50% { opacity: 1; transform: scale(1.02); }
+      100% { opacity: 0.9; transform: scale(0.98); }
+    }
+
+    /* INTERACTION: Violent Shake */
+    @keyframes shake-hard {
+      0% { transform: translate(1px, 1px) rotate(0deg); }
+      10% { transform: translate(-1px, -2px) rotate(-1deg); }
+      20% { transform: translate(-3px, 0px) rotate(1deg); }
+      30% { transform: translate(3px, 2px) rotate(0deg); }
+      40% { transform: translate(1px, -1px) rotate(1deg); }
+      50% { transform: translate(-1px, 2px) rotate(-1deg); }
+      60% { transform: translate(-3px, 1px) rotate(0deg); }
+      70% { transform: translate(3px, 1px) rotate(-1deg); }
+      80% { transform: translate(-1px, -1px) rotate(1deg); }
+      90% { transform: translate(1px, 2px) rotate(0deg); }
+      100% { transform: translate(1px, -2px) rotate(-1deg); }
+    }
+
+    /* INTERACTION: Jelly Effect */
+    @keyframes jelly {
+      0% { transform: scale(1, 1); }
+      30% { transform: scale(1.25, 0.75); }
+      40% { transform: scale(0.75, 1.25); }
+      50% { transform: scale(1.15, 0.85); }
+      65% { transform: scale(0.95, 1.05); }
+      75% { transform: scale(1.05, 0.95); }
+      100% { transform: scale(1, 1); }
+    }
+
+    /* INTERACTION: Rainbow Strobe */
+    @keyframes rainbow-bg {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
     @keyframes chaos-blink {
       0% { background-color: #ef4444; filter: invert(0); }
       25% { background-color: #3b82f6; filter: invert(1); }
@@ -123,26 +181,62 @@ const GlobalStyles = () => (
       75% { background-color: #a855f7; filter: invert(1); }
       100% { background-color: #ef4444; filter: invert(0); }
     }
-    
-    /* Targeted Classes instead of Global Selectors to fix layout issues */
-    .floating {
-      animation: float 6s ease-in-out infinite;
-    }
-    
-    .breathing {
-      transition: all 0.3s ease;
-    }
-    .breathing:hover, .breathing:focus-within {
-      animation: breathe 1.5s ease-in-out infinite;
+
+    /* --- APPLYING ANIMATIONS --- */
+
+    /* Base State: Everything is moving */
+    div:not(.slot-machine-overlay), p, span, td, th, li {
+      animation: constant-wiggle 6s ease-in-out infinite;
     }
 
+    /* Images/Icons cycle colors constantly */
+    img, svg {
+      animation: drift 4s ease-in-out infinite, hue-rotate-slow 10s linear infinite;
+    }
+
+    /* Inputs and Buttons breathe when idle */
+    input, button {
+      animation: breathe 3s ease-in-out infinite;
+    }
+
+    /* INTERACTION STATES */
+    
+    /* Button Hover: Rainbow Strobe */
+    button:hover {
+      animation: shake-hard 0.5s infinite !important;
+      background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000);
+      background-size: 400%;
+      animation: rainbow-bg 0.2s linear infinite, shake-hard 0.5s infinite !important;
+      border-color: white !important;
+      color: white !important;
+      text-shadow: 0 0 5px black;
+    }
+
+    /* Input Focus: Shake violently */
+    input:focus {
+      animation: shake-hard 0.3s infinite !important;
+      border-color: #ec4899 !important;
+      box-shadow: 0 0 15px #ec4899 !important;
+      background-color: #4a044e !important;
+    }
+
+    /* Table Row Hover: Jelly Squish */
+    tr:hover td {
+      animation: jelly 0.8s both !important;
+      background-color: rgba(255, 255, 255, 0.1) !important;
+      color: #fbbf24 !important;
+    }
+
+    /* Slot Machine Specifics */
+    .slot-machine-overlay {
+        animation: none !important; /* Keep container steady */
+    }
     .slot-machine-overlay.chaos-mode {
-      animation: chaos-blink 0.5s steps(4) infinite;
+      animation: chaos-blink 0.5s steps(4) infinite !important;
     }
-
     .reel-blur {
-      filter: blur(1px);
-      transform: scale(1.1);
+      filter: blur(4px);
+      transform: scale(1.2) translateY(20px);
     }
   `}</style>
 );
@@ -150,13 +244,13 @@ const GlobalStyles = () => (
 // --- Components ---
 
 const GlassCard = ({ children, className = "" }) => (
-  <div className={`bg-slate-900/40 backdrop-blur-md border border-amber-500/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] rounded-2xl floating ${className}`}>
+  <div className={`bg-slate-900/40 backdrop-blur-md border border-amber-500/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] rounded-2xl ${className}`}>
     {children}
   </div>
 );
 
 const Button = ({ children, onClick, variant = 'primary', className = "", icon: Icon, disabled }) => {
-  const baseStyles = "inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed breathing";
+  const baseStyles = "inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed";
   const variants = {
     primary: "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 border border-amber-400/20",
     secondary: "bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/30 backdrop-blur-sm",
@@ -174,7 +268,7 @@ const Button = ({ children, onClick, variant = 'primary', className = "", icon: 
 };
 
 const Input = ({ label, value, onChange, onBlur, type = "text", placeholder, prefix, disabled }) => (
-  <div className="space-y-1.5 group w-full breathing">
+  <div className="space-y-1.5 group w-full">
     {label && <label className="block text-xs font-bold text-amber-500/80 uppercase tracking-widest group-focus-within:text-amber-400 transition-colors">{label}</label>}
     <div className="relative">
       {prefix && (
@@ -202,7 +296,7 @@ const Modal = ({ isOpen, onClose, title, children, size = "lg" }) => {
     <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm">
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="fixed inset-0 bg-black/80 transition-opacity" onClick={onClose}></div>
-        <div className={`relative bg-slate-900 border border-amber-500/20 rounded-3xl shadow-2xl transform transition-all ${maxWidth} w-full overflow-hidden floating`}>
+        <div className={`relative bg-slate-900 border border-amber-500/20 rounded-3xl shadow-2xl transform transition-all ${maxWidth} w-full overflow-hidden`}>
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500"></div>
           <div className="p-6 sm:p-8">
             <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-2">
@@ -233,9 +327,8 @@ const SlotMachine = ({ onWin }) => {
     setSpinning(true);
     setMessage("ROLLING...");
 
-    // Determine outcome
+    // Determine outcome (Rigged logic: 4th spin always wins)
     let result;
-    // Rigged logic: If we have already spun 3 times (so this is the 4th+), we win.
     if (spinCount >= 3) {
         result = ['🚢', '🚢', '🚢'];
     } else {
@@ -244,7 +337,6 @@ const SlotMachine = ({ onWin }) => {
             symbols[Math.floor(Math.random() * symbols.length)],
             symbols[Math.floor(Math.random() * symbols.length)]
         ];
-        // Edge case: If random actually gives 3 ships early, we let it pass!
     }
 
     // Animation Loop to simulate spinning reels
@@ -254,7 +346,7 @@ const SlotMachine = ({ onWin }) => {
           symbols[Math.floor(Math.random() * symbols.length)],
           symbols[Math.floor(Math.random() * symbols.length)]
        ]);
-    }, 80); // Rapid change every 80ms
+    }, 80); 
 
     setTimeout(() => {
       clearInterval(animationInterval);
@@ -276,18 +368,18 @@ const SlotMachine = ({ onWin }) => {
           setMessage("TRY AGAIN, CAPTAIN");
         }, 3000);
       }
-    }, 2000); // 2 second spin duration
+    }, 2000); 
   };
 
   return (
     <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-900 text-white slot-machine-overlay h-screen w-screen overflow-hidden ${chaosMode ? 'chaos-mode' : ''}`}>
       <GlobalStyles />
-      <div className="mb-8 text-center space-y-2 floating">
+      <div className="mb-8 text-center space-y-2">
         <h1 className="text-4xl font-black tracking-[0.3em] text-amber-500">CAPTAIN'S CHALLENGE</h1>
         <p className="text-sm text-slate-400 font-mono tracking-widest uppercase">Security Clearance Required</p>
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-2xl border-4 border-amber-600 shadow-2xl relative overflow-hidden floating">
+      <div className="bg-slate-800 p-6 rounded-2xl border-4 border-amber-600 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-white/20 animate-pulse"></div>
         <div className="flex gap-4 mb-6 justify-center">
           {reels.map((symbol, i) => (
@@ -303,7 +395,7 @@ const SlotMachine = ({ onWin }) => {
           <button 
             onClick={spin} 
             disabled={spinning || cooldown}
-            className={`w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all breathing
+            className={`w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all 
               ${cooldown 
                 ? 'bg-red-600 text-white cursor-not-allowed' 
                 : 'bg-gradient-to-b from-amber-400 to-amber-600 text-black hover:scale-105 active:scale-95'
