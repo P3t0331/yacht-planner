@@ -5,6 +5,9 @@ import {
   signInAnonymously, 
   onAuthStateChanged, 
   signInWithCustomToken,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -40,7 +43,10 @@ import {
   AlertCircle,
   Ship,
   Navigation,
-  Compass
+  Compass,
+  Lock,
+  LogOut,
+  User
 } from 'lucide-react';
 
 // --- Firebase Configuration ---
@@ -96,14 +102,11 @@ const formatCurrency = (amount, currency = 'EUR') => {
   }).format(amount);
 };
 
-// Helper to clean price strings like "3 459,00 €" -> 3459.00
+// Helper to clean price strings
 const parsePrice = (str) => {
   if (!str) return 0;
-  // Remove all non-numeric chars except comma and dot
   let clean = str.replace(/[^\d,.]/g, '');
-  // Replace comma with dot for float parsing if comma is decimal separator
   clean = clean.replace(',', '.');
-  // If multiple dots exist (thousands separators), keep only the last one
   return parseFloat(clean) || 0;
 };
 
@@ -134,7 +137,7 @@ const Button = ({ children, onClick, variant = 'primary', className = "", icon: 
 };
 
 const Input = ({ label, value, onChange, onBlur, type = "text", placeholder, prefix, disabled }) => (
-  <div className="space-y-1.5 group">
+  <div className="space-y-1.5 group w-full">
     {label && <label className="block text-xs font-bold text-amber-500/80 uppercase tracking-widest group-focus-within:text-amber-400 transition-colors">{label}</label>}
     <div className="relative">
       {prefix && (
@@ -145,7 +148,7 @@ const Input = ({ label, value, onChange, onBlur, type = "text", placeholder, pre
       <input
         type={type}
         disabled={disabled}
-        className={`block w-full rounded-xl bg-slate-950/60 border border-white/10 text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:bg-slate-900/80 transition-all duration-300 py-3 ${prefix ? 'pl-8' : 'pl-4'} ${disabled ? 'opacity-50 cursor-wait' : ''}`}
+        className={`block w-full rounded-xl bg-slate-950/60 border border-white/10 text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:bg-slate-900/80 transition-all duration-300 py-3 ${prefix ? 'pl-8' : 'pl-4'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -155,13 +158,14 @@ const Input = ({ label, value, onChange, onBlur, type = "text", placeholder, pre
   </div>
 );
 
-const Modal = ({ isOpen, onClose, title, children }) => {
+const Modal = ({ isOpen, onClose, title, children, size = "lg" }) => {
   if (!isOpen) return null;
+  const maxWidth = size === "sm" ? "max-w-sm" : "max-w-lg";
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm">
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="fixed inset-0 bg-black/80 transition-opacity" onClick={onClose}></div>
-        <div className="relative bg-slate-900 border border-amber-500/20 rounded-3xl shadow-2xl transform transition-all max-w-lg w-full overflow-hidden">
+        <div className={`relative bg-slate-900 border border-amber-500/20 rounded-3xl shadow-2xl transform transition-all ${maxWidth} w-full overflow-hidden`}>
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500"></div>
           <div className="p-6 sm:p-8">
             <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-2">
@@ -180,17 +184,25 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 
 export default function YachtManager() {
   const [user, setUser] = useState(null);
+  const [isCaptain, setIsCaptain] = useState(false); // Role State
   const [yachts, setYachts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exchangeRate, setExchangeRate] = useState(25); 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pax, setPax] = useState(8); 
   const [isRateLoading, setIsRateLoading] = useState(false);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   
-  // Form State
+  // Auth Form State
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+
+  // Yacht Form State
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -204,16 +216,52 @@ export default function YachtManager() {
 
   // --- Authentication ---
   useEffect(() => {
-    const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
+    // Listen for auth changes
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        // If user is NOT anonymous, they are a Captain (authenticated via email)
+        setIsCaptain(!currentUser.isAnonymous);
       } else {
-        await signInAnonymously(auth);
+        // If no user, sign in anonymously as Guest automatically
+        signInAnonymously(auth).catch((e) => console.error("Guest login failed", e));
+        setIsCaptain(false);
       }
-    };
-    initAuth();
-    return onAuthStateChanged(auth, setUser);
+    });
+    return () => unsubscribe();
   }, []);
+
+  // --- Auth Handlers ---
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    try {
+      await signInWithEmailAndPassword(auth, authEmail, authPassword);
+      setIsAuthModalOpen(false);
+      setAuthEmail('');
+      setAuthPassword('');
+    } catch (error) {
+      setAuthError(error.message.replace('Firebase: ', ''));
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    try {
+      await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+      setIsAuthModalOpen(false);
+      setAuthEmail('');
+      setAuthPassword('');
+    } catch (error) {
+      setAuthError(error.message.replace('Firebase: ', ''));
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    // Auto re-login as guest handled by onAuthStateChanged
+  };
 
   // --- Auto-Fetch Exchange Rate ---
   const fetchRate = async () => {
@@ -223,7 +271,7 @@ export default function YachtManager() {
         const data = await response.json();
         if (data && data.rates && data.rates.CZK) {
             setExchangeRate(data.rates.CZK);
-            updateRateInDb(data.rates.CZK);
+            if (isCaptain) updateRateInDb(data.rates.CZK); // Only captain can persist rate
         }
     } catch (e) {
         console.warn("Failed to auto-fetch rate");
@@ -266,7 +314,7 @@ export default function YachtManager() {
   // --- Handlers ---
 
   const handleSaveYacht = async () => {
-    if (!user) return;
+    if (!isCaptain) return; // Security check
     if (!formData.name) return;
 
     const payload = {
@@ -297,6 +345,7 @@ export default function YachtManager() {
   };
 
   const handleDelete = async (id) => {
+    if (!isCaptain) return;
     if (!confirm("Delete this yacht?")) return;
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_YACHTS, id));
@@ -306,6 +355,7 @@ export default function YachtManager() {
   };
 
   const updateRateInDb = async (newRate) => {
+      if (!isCaptain) return;
       try {
         const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SETTINGS, DOC_SETTINGS);
         await setDoc(settingsRef, { rate: parseFloat(newRate) }, { merge: true });
@@ -314,7 +364,7 @@ export default function YachtManager() {
 
   const handleManualRateChange = (val) => {
       setExchangeRate(val);
-      updateRateInDb(val);
+      updateRateInDb(val); // Will check isCaptain internally
   }
 
   // --- SMART PARSING LOGIC (AAAYacht) ---
@@ -327,7 +377,6 @@ export default function YachtManager() {
     let fetchSuccess = false;
 
     try {
-      // Attempt 1: AllOrigins
       try {
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
         const response = await fetch(proxyUrl);
@@ -340,7 +389,6 @@ export default function YachtManager() {
         }
       } catch (err1) { console.warn("Proxy 1 failed"); }
 
-      // Attempt 2: CorsProxy
       if (!fetchSuccess) {
           try {
             const backupProxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
@@ -359,42 +407,32 @@ export default function YachtManager() {
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlContent, "text/html");
 
-      // 1. Name
       const nameEl = doc.querySelector('h1.yacht-name-header');
       const name = nameEl ? nameEl.textContent.trim() : "";
 
-      // 2. Image & Tech Specs URL (Derived from Image ID)
       const imgEl = doc.querySelector('meta[property="og:image"]');
       const image = imgEl ? imgEl.getAttribute('content') : "";
       
       let techSpecsUrl = "";
       if (image) {
-          // Extract ID from image URL: .../rest/yacht/37872968/pictures/...
           const idMatch = image.match(/yacht\/(\d+)\//);
           if (idMatch && idMatch[1]) {
               techSpecsUrl = `https://ws.nausys.com/CBMS-external/rest/yacht/${idMatch[1]}/html`;
           }
       }
 
-      // 3. Price (Robust)
-      // Look for the discount list item
       const priceContainer = doc.querySelector('.price-after-discount');
       let price = 0;
       if (priceContainer) {
-          // Get all text content, remove "Cena po slevě" etc, look for the number
           const text = priceContainer.textContent;
-          // Regex for number with comma decimals: 3 459,00
           const match = text.match(/([\d\s]+[,.]\d{2})/);
           if (match && match[1]) {
               price = parsePrice(match[1]);
           }
       }
 
-      // 4. Charter Pack (Robust)
       let charterPack = 0;
-      // Scan all elements for text "Charter package" or "Transit log"
       const allElements = Array.from(doc.querySelectorAll('*'));
-      // Find the specific leaf node (text container)
       const labelNode = allElements.find(el => 
           el.children.length === 0 && 
           (el.textContent.toLowerCase().includes('charter package') || 
@@ -402,10 +440,8 @@ export default function YachtManager() {
       );
 
       if (labelNode) {
-         // Go up to the row container
          const parentRow = labelNode.closest('.row');
          if (parentRow) {
-             // Look for the BOLD tag in that row (usually contains the price)
              const bTag = parentRow.querySelector('b');
              if (bTag) {
                  charterPack = parsePrice(bTag.textContent);
@@ -413,12 +449,11 @@ export default function YachtManager() {
          }
       }
 
-      // Apply to state
       setFormData(prev => ({
           ...prev,
           name: name || prev.name,
           imageUrl: image || prev.imageUrl,
-          detailsLink: techSpecsUrl || prev.detailsLink, // Auto-filled Tech Specs
+          detailsLink: techSpecsUrl || prev.detailsLink,
           price: price || prev.price,
           charterPack: charterPack || prev.charterPack,
           link: url
@@ -433,7 +468,6 @@ export default function YachtManager() {
     }
   };
 
-  // Trigger on Blur if it looks like an Aaayacht link
   const handleLinkBlur = (e) => {
     const url = e.target.value;
     if (!url) return;
@@ -441,7 +475,6 @@ export default function YachtManager() {
     if (url.includes('aaayacht.cz')) {
         fetchAaayachtData(url);
     } else if (url.includes('nausys') || url.includes('booking-manager')) {
-        // Existing Nausys Image Logic
         const idMatch = url.match(/(?:yacht\/|yachtId=|id=)(\d+)/);
         if (idMatch && idMatch[1]) {
             const nausysImage = `https://ws.nausys.com/CBMS-external/rest/yacht/${idMatch[1]}/pictures/main.jpg`;
@@ -530,7 +563,7 @@ export default function YachtManager() {
             {/* Controls */}
             <div className="flex items-center gap-6">
               
-              {/* Live Rate Ticker */}
+              {/* Live Rate Ticker (Read Only for Guest, Editable for Captain) */}
               <div className="hidden md:flex flex-col items-end">
                 <div className="flex items-center gap-2 text-xs font-bold text-amber-500/70 uppercase tracking-wider mb-1">
                    <TrendingUp size={12} />
@@ -544,7 +577,8 @@ export default function YachtManager() {
                   <input 
                     type="number" 
                     step="0.1"
-                    className="w-16 bg-transparent text-right text-lg font-bold text-white focus:outline-none"
+                    disabled={!isCaptain}
+                    className={`w-16 bg-transparent text-right text-lg font-bold text-white focus:outline-none ${!isCaptain ? 'opacity-70 cursor-default' : ''}`}
                     value={exchangeRate}
                     onChange={(e) => handleManualRateChange(e.target.value)}
                   />
@@ -554,9 +588,27 @@ export default function YachtManager() {
 
               <div className="h-10 w-px bg-white/10 mx-2 hidden md:block"></div>
 
-              <Button variant="primary" icon={Plus} onClick={openNew}>
-                Add Option
-              </Button>
+              {isCaptain ? (
+                <div className="flex gap-3">
+                  <Button variant="primary" icon={Plus} onClick={openNew}>
+                    Add Option
+                  </Button>
+                  <button 
+                    onClick={handleLogout}
+                    className="p-2.5 rounded-full bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all"
+                    title="Captain Logout"
+                  >
+                    <LogOut size={20} />
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => { setAuthMode('login'); setIsAuthModalOpen(true); }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-amber-500/10 text-slate-400 hover:text-amber-400 border border-white/5 hover:border-amber-500/30 transition-all text-sm font-bold uppercase tracking-wide"
+                >
+                  <Lock size={14} /> Captain Login
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -663,7 +715,8 @@ export default function YachtManager() {
                        </div>
                   </th>
 
-                  <th className="px-6 py-5 text-right bg-slate-900/30"><span className="sr-only">Actions</span></th>
+                  {/* Hide Actions column for Guests */}
+                  {isCaptain && <th className="px-6 py-5 text-right bg-slate-900/30"><span className="sr-only">Actions</span></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -672,7 +725,7 @@ export default function YachtManager() {
                      <td colSpan="11" className="px-6 py-20 text-center text-slate-500">
                        <Ship className="mx-auto h-16 w-16 text-slate-700 mb-4 animate-pulse" />
                        <p className="text-lg font-medium text-slate-400">No proposals created yet.</p>
-                       <Button variant="secondary" onClick={openNew} className="mt-4">Start a New Proposal</Button>
+                       {isCaptain && <Button variant="secondary" onClick={openNew} className="mt-4">Start a New Proposal</Button>}
                      </td>
                    </tr>
                 ) : (
@@ -752,20 +805,22 @@ export default function YachtManager() {
                             </div>
                         </td>
 
-                        {/* Actions */}
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                            <Button variant="icon" onClick={() => openEdit(yacht)}>
-                                <Edit2 size={16} />
-                            </Button>
-                            <button 
-                                onClick={() => handleDelete(yacht.id)}
-                                className="p-2 rounded-full bg-white/5 hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
-                            >
-                                <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
+                        {/* Actions (Protected) */}
+                        {isCaptain && (
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                              <Button variant="icon" onClick={() => openEdit(yacht)}>
+                                  <Edit2 size={16} />
+                              </Button>
+                              <button 
+                                  onClick={() => handleDelete(yacht.id)}
+                                  className="p-2 rounded-full bg-white/5 hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
+                              >
+                                  <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })
@@ -775,7 +830,7 @@ export default function YachtManager() {
         </div>
       </main>
 
-      {/* Edit Modal */}
+      {/* Edit Modal (Protected) */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -874,6 +929,57 @@ export default function YachtManager() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Auth Modal */}
+      <Modal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        title={authMode === 'login' ? 'Captain Login' : 'New Captain Registration'}
+        size="sm"
+      >
+        <form onSubmit={authMode === 'login' ? handleLogin : handleRegister} className="space-y-6">
+          {authError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm text-center">
+              {authError}
+            </div>
+          )}
+          
+          <div className="space-y-4">
+            <Input 
+              label="Email Address" 
+              type="email"
+              placeholder="captain@deck.com"
+              value={authEmail} 
+              onChange={setAuthEmail}
+              prefix={<User size={14} />}
+            />
+            <Input 
+              label="Password" 
+              type="password"
+              placeholder="••••••••"
+              value={authPassword} 
+              onChange={setAuthPassword}
+              prefix={<Lock size={14} />}
+            />
+          </div>
+
+          <div className="pt-2">
+            <Button variant="primary" className="w-full" onClick={authMode === 'login' ? handleLogin : handleRegister}>
+              {authMode === 'login' ? 'Board the Ship' : 'Commission Account'}
+            </Button>
+          </div>
+
+          <div className="text-center">
+            <button 
+              type="button"
+              onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); }}
+              className="text-xs text-slate-500 hover:text-amber-400 transition-colors uppercase tracking-widest font-bold"
+            >
+              {authMode === 'login' ? 'Need an account? Register' : 'Have an account? Login'}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );
