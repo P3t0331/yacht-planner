@@ -37,7 +37,10 @@ import {
   Link as LinkIcon,
   ExternalLink,
   Wand2,
-  AlertCircle
+  AlertCircle,
+  Ship,
+  Navigation,
+  Compass
 } from 'lucide-react';
 
 // --- Firebase Configuration ---
@@ -107,7 +110,7 @@ const parsePrice = (str) => {
 // --- Components ---
 
 const GlassCard = ({ children, className = "" }) => (
-  <div className={`bg-white/10 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] rounded-2xl ${className}`}>
+  <div className={`bg-slate-900/40 backdrop-blur-md border border-amber-500/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] rounded-2xl ${className}`}>
     {children}
   </div>
 );
@@ -115,11 +118,11 @@ const GlassCard = ({ children, className = "" }) => (
 const Button = ({ children, onClick, variant = 'primary', className = "", icon: Icon, disabled }) => {
   const baseStyles = "inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed";
   const variants = {
-    primary: "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 border border-cyan-400/20",
+    primary: "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 border border-amber-400/20",
     secondary: "bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/30 backdrop-blur-sm",
     danger: "bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg shadow-red-500/30 hover:shadow-red-500/50",
     ghost: "text-slate-300 hover:text-white hover:bg-white/5",
-    icon: "p-2 rounded-full bg-white/5 hover:bg-white/20 text-cyan-400 hover:text-cyan-200 transition-colors",
+    icon: "p-2 rounded-full bg-white/5 hover:bg-white/20 text-amber-400 hover:text-amber-200 transition-colors",
   };
 
   return (
@@ -132,7 +135,7 @@ const Button = ({ children, onClick, variant = 'primary', className = "", icon: 
 
 const Input = ({ label, value, onChange, onBlur, type = "text", placeholder, prefix, disabled }) => (
   <div className="space-y-1.5 group">
-    {label && <label className="block text-xs font-bold text-cyan-300/80 uppercase tracking-widest group-focus-within:text-cyan-400 transition-colors">{label}</label>}
+    {label && <label className="block text-xs font-bold text-amber-500/80 uppercase tracking-widest group-focus-within:text-amber-400 transition-colors">{label}</label>}
     <div className="relative">
       {prefix && (
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -142,7 +145,7 @@ const Input = ({ label, value, onChange, onBlur, type = "text", placeholder, pre
       <input
         type={type}
         disabled={disabled}
-        className={`block w-full rounded-xl bg-slate-900/50 border border-white/10 text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:bg-slate-900/80 transition-all duration-300 py-3 ${prefix ? 'pl-8' : 'pl-4'} ${disabled ? 'opacity-50 cursor-wait' : ''}`}
+        className={`block w-full rounded-xl bg-slate-950/60 border border-white/10 text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:bg-slate-900/80 transition-all duration-300 py-3 ${prefix ? 'pl-8' : 'pl-4'} ${disabled ? 'opacity-50 cursor-wait' : ''}`}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -157,12 +160,12 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm">
       <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="fixed inset-0 bg-black/70 transition-opacity" onClick={onClose}></div>
-        <div className="relative bg-slate-900 border border-white/10 rounded-3xl shadow-2xl transform transition-all max-w-lg w-full overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500"></div>
+        <div className="fixed inset-0 bg-black/80 transition-opacity" onClick={onClose}></div>
+        <div className="relative bg-slate-900 border border-amber-500/20 rounded-3xl shadow-2xl transform transition-all max-w-lg w-full overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500"></div>
           <div className="p-6 sm:p-8">
             <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-2">
-              <Zap className="text-yellow-400 fill-yellow-400" size={24} />
+              <Compass className="text-amber-500" size={24} />
               {title}
             </h3>
             {children}
@@ -487,40 +490,40 @@ export default function YachtManager() {
   if (!user) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white gap-4">
       <div className="relative w-16 h-16">
-        <div className="absolute inset-0 border-4 border-cyan-500/30 rounded-full"></div>
-        <div className="absolute inset-0 border-4 border-cyan-400 rounded-full border-t-transparent animate-spin"></div>
+        <div className="absolute inset-0 border-4 border-amber-500/30 rounded-full"></div>
+        <div className="absolute inset-0 border-4 border-amber-400 rounded-full border-t-transparent animate-spin"></div>
       </div>
-      <div className="text-cyan-400 font-mono text-sm animate-pulse">INITIALIZING SYSTEMS...</div>
+      <div className="text-amber-400 font-mono text-sm animate-pulse tracking-widest">CAPTAIN ON BRIDGE...</div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-[#0f172a] to-slate-950 text-slate-200 font-sans selection:bg-cyan-500/30 selection:text-cyan-200 pb-20">
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-[#0f172a] to-black text-slate-200 font-sans selection:bg-amber-500/30 selection:text-amber-200 pb-20">
       
       {/* Ambient Background Glows */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-purple-600/20 rounded-full blur-[120px] opacity-50"></div>
-        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] bg-cyan-600/20 rounded-full blur-[120px] opacity-40"></div>
+        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-blue-900/20 rounded-full blur-[120px] opacity-50"></div>
+        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] bg-amber-600/10 rounded-full blur-[120px] opacity-40"></div>
       </div>
 
       {/* Navbar */}
-      <nav className="sticky top-0 z-40 border-b border-white/10 bg-slate-900/80 backdrop-blur-xl">
+      <nav className="sticky top-0 z-40 border-b border-white/5 bg-slate-900/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20 items-center">
             
             {/* Logo Area */}
             <div className="flex items-center gap-3 group cursor-default">
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-xl blur opacity-40 group-hover:opacity-75 transition-opacity duration-500"></div>
-                <div className="relative bg-slate-900 p-2.5 rounded-xl border border-white/10">
-                  <Anchor className="text-cyan-400 h-6 w-6 transform group-hover:rotate-12 transition-transform duration-500" />
+                <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full blur opacity-20 group-hover:opacity-50 transition-opacity duration-500"></div>
+                <div className="relative bg-slate-900 p-2.5 rounded-full border border-amber-500/30">
+                  <Navigation className="text-amber-400 h-6 w-6 transform group-hover:rotate-45 transition-transform duration-700" />
                 </div>
               </div>
               <div>
-                <h1 className="text-2xl font-black tracking-tight text-white">
-                  YACHT<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">MASTER</span>
+                <h1 className="text-xl font-black tracking-widest text-white uppercase">
+                  Captain's<span className="text-amber-500">Deck</span>
                 </h1>
-                <p className="text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase">Fleet Command</p>
+                <p className="text-[10px] font-bold text-amber-500/70 tracking-[0.2em] uppercase">Trip Proposal System</p>
               </div>
             </div>
             
@@ -529,14 +532,14 @@ export default function YachtManager() {
               
               {/* Live Rate Ticker */}
               <div className="hidden md:flex flex-col items-end">
-                <div className="flex items-center gap-2 text-xs font-bold text-cyan-300/70 uppercase tracking-wider mb-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-500/70 uppercase tracking-wider mb-1">
                    <TrendingUp size={12} />
                    Exchange Rate
                    <button onClick={fetchRate} className={`hover:text-white transition-colors ${isRateLoading ? 'animate-spin' : ''}`}>
                      <RefreshCw size={12} />
                    </button>
                 </div>
-                <div className="flex items-center bg-white/5 rounded-lg p-1 border border-white/10 hover:border-cyan-500/50 transition-colors">
+                <div className="flex items-center bg-white/5 rounded-lg p-1 border border-white/10 hover:border-amber-500/50 transition-colors">
                   <span className="px-2 text-slate-400 text-sm">€1 =</span>
                   <input 
                     type="number" 
@@ -545,14 +548,14 @@ export default function YachtManager() {
                     value={exchangeRate}
                     onChange={(e) => handleManualRateChange(e.target.value)}
                   />
-                  <span className="px-2 text-cyan-400 font-bold text-sm">CZK</span>
+                  <span className="px-2 text-amber-400 font-bold text-sm">CZK</span>
                 </div>
               </div>
 
               <div className="h-10 w-px bg-white/10 mx-2 hidden md:block"></div>
 
               <Button variant="primary" icon={Plus} onClick={openNew}>
-                New Vessel
+                Add Option
               </Button>
             </div>
           </div>
@@ -568,25 +571,25 @@ export default function YachtManager() {
                 
                 {/* Dynamic Pax Splitter */}
                 <div className="flex-1">
-                    <label className="flex items-center gap-2 text-xs font-bold text-cyan-300 uppercase tracking-widest mb-3">
+                    <label className="flex items-center gap-2 text-xs font-bold text-amber-500 uppercase tracking-widest mb-3">
                         <Users size={14} />
-                        Split Calculator
+                        Guest Count
                     </label>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-3 bg-slate-950/50 p-1.5 rounded-xl border border-white/10">
                             <button 
                                 onClick={() => setPax(p => Math.max(1, p - 1))}
-                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-cyan-500/20 hover:text-cyan-300 transition-colors text-slate-400"
+                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-amber-500/20 hover:text-amber-300 transition-colors text-slate-400"
                             >
                                 <Minus size={18} />
                             </button>
                             <div className="w-16 text-center">
                                 <span className="text-2xl font-black text-white">{pax}</span>
-                                <p className="text-[9px] text-slate-500 uppercase font-bold">Persons</p>
+                                <p className="text-[9px] text-slate-500 uppercase font-bold">Guests</p>
                             </div>
                             <button 
                                 onClick={() => setPax(p => p + 1)}
-                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-cyan-500/20 hover:text-cyan-300 transition-colors text-slate-400"
+                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-amber-500/20 hover:text-amber-300 transition-colors text-slate-400"
                             >
                                 <UserPlus size={18} />
                             </button>
@@ -599,9 +602,9 @@ export default function YachtManager() {
                                 max="16" 
                                 value={pax} 
                                 onChange={(e) => setPax(parseInt(e.target.value))}
-                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400"
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500 hover:accent-amber-400"
                             />
-                            <div className="flex justify-between text-[10px] text-slate-600 font-mono mt-1 px-1">
+                            <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1 px-1">
                                 <span>1</span>
                                 <span>8</span>
                                 <span>16</span>
@@ -612,18 +615,18 @@ export default function YachtManager() {
 
                 {/* Search Box */}
                 <div className="w-full md:w-1/3">
-                    <label className="flex items-center gap-2 text-xs font-bold text-purple-300 uppercase tracking-widest mb-3">
+                    <label className="flex items-center gap-2 text-xs font-bold text-amber-500 uppercase tracking-widest mb-3">
                         <Search size={14} />
-                        Filter Fleet
+                        Find Vessel
                     </label>
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                             <Search className="h-5 w-5 text-slate-500 group-focus-within:text-purple-400 transition-colors" />
+                             <Search className="h-5 w-5 text-slate-500 group-focus-within:text-amber-400 transition-colors" />
                         </div>
                         <input
                             type="text"
-                            className="block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-slate-950/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
-                            placeholder="Find a boat..."
+                            className="block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-slate-950/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
+                            placeholder="Search by name..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -643,19 +646,19 @@ export default function YachtManager() {
                   </th>
 
                   <th className="px-6 py-5 text-xs font-extrabold text-slate-400 uppercase tracking-wider w-64">
-                    Vessel Info
+                    Vessel Option
                   </th>
                   <th className="px-4 py-5 text-right text-xs font-extrabold text-slate-500 uppercase tracking-wider w-32">Boat Price</th>
-                  <th className="px-4 py-5 text-right text-xs font-extrabold text-slate-500 uppercase tracking-wider w-32">Charter Pack</th>
+                  <th className="px-4 py-5 text-right text-xs font-extrabold text-slate-500 uppercase tracking-wider w-32">Logs/Pack</th>
                   <th className="px-4 py-5 text-right text-xs font-extrabold text-slate-500 uppercase tracking-wider w-32">Extras</th>
-                  <th className="px-4 py-5 text-right text-xs font-extrabold text-cyan-400 uppercase tracking-wider w-40 bg-cyan-500/5">
+                  <th className="px-4 py-5 text-right text-xs font-extrabold text-amber-500 uppercase tracking-wider w-40 bg-amber-500/5">
                      <span className="flex items-center justify-end gap-1"><DollarSign size={12}/> Total (EUR)</span>
                   </th>
                   
-                  <th className="px-4 py-5 text-center w-56 bg-purple-500/5 border-l border-white/5">
+                  <th className="px-4 py-5 text-center w-56 bg-blue-500/5 border-l border-white/5">
                        <div className="flex flex-col items-center">
-                           <span className="text-xs font-extrabold text-purple-300 uppercase tracking-wider flex items-center gap-1">
-                               <Users size={12}/> Split ({pax} Pax)
+                           <span className="text-xs font-extrabold text-blue-400 uppercase tracking-wider flex items-center gap-1">
+                               <Users size={12}/> Cost Per Guest
                            </span>
                        </div>
                   </th>
@@ -667,9 +670,9 @@ export default function YachtManager() {
                 {filteredYachts.length === 0 ? (
                    <tr>
                      <td colSpan="11" className="px-6 py-20 text-center text-slate-500">
-                       <Wind className="mx-auto h-16 w-16 text-slate-700 mb-4 animate-pulse" />
-                       <p className="text-lg font-medium text-slate-400">The harbor is empty.</p>
-                       <Button variant="secondary" onClick={openNew} className="mt-4">Add your first yacht</Button>
+                       <Ship className="mx-auto h-16 w-16 text-slate-700 mb-4 animate-pulse" />
+                       <p className="text-lg font-medium text-slate-400">No proposals created yet.</p>
+                       <Button variant="secondary" onClick={openNew} className="mt-4">Start a New Proposal</Button>
                      </td>
                    </tr>
                 ) : (
@@ -683,7 +686,7 @@ export default function YachtManager() {
                         
                         {/* Clickable Image Column */}
                         <td className="sticky left-0 z-10 bg-slate-900/95 border-r border-white/5 px-4 py-4 text-center">
-                           <div className="relative h-20 w-32 rounded-lg bg-slate-800 border border-white/10 mx-auto group-hover:border-cyan-500/50 transition-all duration-300 overflow-hidden">
+                           <div className="relative h-20 w-32 rounded-lg bg-slate-800 border border-white/10 mx-auto group-hover:border-amber-500/50 transition-all duration-300 overflow-hidden">
                              {yacht.imageUrl ? (
                                <a 
                                  href={yacht.imageUrl} 
@@ -714,15 +717,15 @@ export default function YachtManager() {
                           <div className="flex flex-col">
                             <div className="font-bold text-white text-lg truncate tracking-tight flex items-center gap-2">
                               {yacht.link ? (
-                                <a href={yacht.link} target="_blank" rel="noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-2">
+                                <a href={yacht.link} target="_blank" rel="noreferrer" className="hover:text-amber-400 transition-colors flex items-center gap-2">
                                   {yacht.name}
                                   <ExternalLink size={12} className="opacity-50" />
                                 </a>
                               ) : yacht.name}
                             </div>
                             {yacht.detailsLink && (
-                              <a href={yacht.detailsLink} target="_blank" rel="noreferrer" className="text-xs font-mono text-slate-500 hover:text-cyan-300 transition-colors mt-1 flex items-center gap-1">
-                                View Specs
+                              <a href={yacht.detailsLink} target="_blank" rel="noreferrer" className="text-xs font-mono text-slate-500 hover:text-amber-300 transition-colors mt-1 flex items-center gap-1">
+                                Tech Specs
                               </a>
                             )}
                           </div>
@@ -733,14 +736,14 @@ export default function YachtManager() {
                         <td className="px-4 py-4 text-slate-400 text-right font-mono text-sm group-hover:text-slate-200 transition-colors">{formatCurrency(yacht.extras)}</td>
                         
                         {/* Total EUR */}
-                        <td className="px-4 py-4 text-right bg-cyan-500/[0.02]">
-                            <div className="font-mono font-bold text-cyan-400 text-base shadow-cyan-500/50 drop-shadow-sm">
+                        <td className="px-4 py-4 text-right bg-amber-500/[0.05]">
+                            <div className="font-mono font-bold text-amber-400 text-base shadow-amber-500/50 drop-shadow-sm">
                                 {formatCurrency(totalEur)}
                             </div>
                         </td>
 
                         {/* Split Dynamic */}
-                        <td className="px-4 py-4 bg-purple-500/[0.02] border-l border-white/5">
+                        <td className="px-4 py-4 bg-blue-500/[0.02] border-l border-white/5">
                             <div className="flex flex-col items-center gap-1">
                                 <div className="text-xs text-slate-400 font-mono">{formatCurrency(perPersonEur)} <span className="text-[9px] text-slate-600">EUR</span></div>
                                 <div className="text-lg font-black text-white font-mono bg-white/5 px-3 py-1 rounded-md border border-white/10 shadow-inner">
@@ -776,7 +779,7 @@ export default function YachtManager() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingId ? "Edit Vessel" : "Commission Vessel"}
+        title={editingId ? "Edit Option" : "Add Charter Option"}
       >
         <div className="space-y-6">
           
@@ -795,12 +798,12 @@ export default function YachtManager() {
              </div>
              <div className="flex-1 space-y-4 w-full">
                 <Input 
-                  label="Booking URL (Auto-Fills Data)" 
-                  placeholder="Paste Aaayacht link here..."
+                  label="Aaayacht Link (Magic Import)" 
+                  placeholder="Paste booking link here..."
                   value={formData.link} 
                   onChange={(v) => setFormData({...formData, link: v})}
                   onBlur={handleLinkBlur}
-                  prefix={isFetchingData ? <RefreshCw className="animate-spin" size={14} /> : fetchError ? <AlertCircle className="text-red-500" size={14} /> : <Wand2 size={14} className="text-purple-400" />}
+                  prefix={isFetchingData ? <RefreshCw className="animate-spin" size={14} /> : fetchError ? <AlertCircle className="text-red-500" size={14} /> : <Wand2 size={14} className="text-amber-400" />}
                   disabled={isFetchingData}
                 />
                 <Input 
@@ -834,7 +837,7 @@ export default function YachtManager() {
 
           <div className="bg-slate-950/50 p-4 rounded-xl border border-white/5">
              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <DollarSign size={14} /> Financials (EUR)
+                <DollarSign size={14} /> Voyage Costs (EUR)
              </label>
              <div className="grid grid-cols-3 gap-4">
                <Input 
@@ -846,7 +849,7 @@ export default function YachtManager() {
                 onChange={(v) => setFormData({...formData, price: v})} 
               />
                <Input 
-                label="Logbook / Pack" 
+                label="Logs / Pack" 
                 type="number"
                 prefix="€"
                 placeholder="0"
@@ -867,7 +870,7 @@ export default function YachtManager() {
           <div className="pt-4 flex items-center justify-end gap-3">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
             <Button variant="primary" onClick={handleSaveYacht} icon={Save} disabled={isFetchingData}>
-              {editingId ? "Save Changes" : "AddTo Fleet"}
+              {editingId ? "Update Proposal" : "Add to Deck"}
             </Button>
           </div>
         </div>
