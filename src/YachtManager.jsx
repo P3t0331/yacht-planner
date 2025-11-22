@@ -1,0 +1,658 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  onAuthStateChanged, 
+  signInWithCustomToken,
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  query, 
+  serverTimestamp,
+  setDoc
+} from 'firebase/firestore';
+import { 
+  Anchor, 
+  Users, 
+  Plus, 
+  Trash2, 
+  Edit2, 
+  Save, 
+  DollarSign, 
+  TrendingUp,
+  Search,
+  RefreshCw,
+  Wind,
+  Zap,
+  Minus,
+  UserPlus
+} from 'lucide-react';
+import { getAnalytics } from "firebase/analytics";
+
+// --- Firebase Configuration ---
+let firebaseConfig;
+let appId;
+
+// 1. AI / Sandbox Environment (Automatic)
+if (typeof __firebase_config !== 'undefined') {
+  try {
+    firebaseConfig = JSON.parse(__firebase_config);
+    appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+  } catch (e) {
+    console.error("Error parsing config", e);
+  }
+} 
+
+// 2. Production / Vercel Environment (Manual)
+// If the global configs are missing, we fall back to standard Vite env vars.
+if (!firebaseConfig) {
+  firebaseConfig = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID
+  };
+  // You can change this to 'production-fleet' or any unique ID for your team
+  appId = 'yacht-manager-public'; 
+}
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// --- Constants & Helpers ---
+const COLLECTION_YACHTS = 'yachts';
+const COLLECTION_SETTINGS = 'settings';
+const DOC_SETTINGS = 'global_settings';
+
+const formatCurrency = (amount, currency = 'EUR') => {
+  if (amount === undefined || amount === null) return '-';
+  return new Intl.NumberFormat(currency === 'CZK' ? 'cs-CZ' : 'en-IE', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
+// --- Components ---
+
+const GlassCard = ({ children, className = "" }) => (
+  <div className={`bg-white/10 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] rounded-2xl ${className}`}>
+    {children}
+  </div>
+);
+
+const Button = ({ children, onClick, variant = 'primary', className = "", icon: Icon }) => {
+  const baseStyles = "inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent";
+  const variants = {
+    primary: "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 border border-cyan-400/20",
+    secondary: "bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/30 backdrop-blur-sm",
+    danger: "bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg shadow-red-500/30 hover:shadow-red-500/50",
+    ghost: "text-slate-300 hover:text-white hover:bg-white/5",
+    icon: "p-2 rounded-full bg-white/5 hover:bg-white/20 text-cyan-400 hover:text-cyan-200 transition-colors",
+  };
+
+  return (
+    <button onClick={onClick} className={`${baseStyles} ${variants[variant]} ${className}`}>
+      {Icon && <Icon size={18} className={children ? "mr-2" : ""} />}
+      {children}
+    </button>
+  );
+};
+
+const Input = ({ label, value, onChange, type = "text", placeholder, prefix }) => (
+  <div className="space-y-1.5 group">
+    {label && <label className="block text-xs font-bold text-cyan-300/80 uppercase tracking-widest group-focus-within:text-cyan-400 transition-colors">{label}</label>}
+    <div className="relative">
+      {prefix && (
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <span className="text-slate-400 font-medium">{prefix}</span>
+        </div>
+      )}
+      <input
+        type={type}
+        className={`block w-full rounded-xl bg-slate-900/50 border border-white/10 text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:bg-slate-900/80 transition-all duration-300 py-3 ${prefix ? 'pl-8' : 'pl-4'}`}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  </div>
+);
+
+const Modal = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm">
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <div className="fixed inset-0 bg-black/70 transition-opacity" onClick={onClose}></div>
+        <div className="relative bg-slate-900 border border-white/10 rounded-3xl shadow-2xl transform transition-all max-w-lg w-full overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500"></div>
+          <div className="p-6 sm:p-8">
+            <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-2">
+              <Zap className="text-yellow-400 fill-yellow-400" size={24} />
+              {title}
+            </h3>
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Main Application Component ---
+
+export default function YachtManager() {
+  const [user, setUser] = useState(null);
+  const [yachts, setYachts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [exchangeRate, setExchangeRate] = useState(25); // Default safe fallback
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [pax, setPax] = useState(8); // Dynamic Pax State
+  const [isRateLoading, setIsRateLoading] = useState(false);
+  
+  // Form State
+  const [editingId, setEditingId] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    link: '',
+    detailsLink: '',
+    price: '',
+    charterPack: '',
+    extras: ''
+  });
+
+  // --- Authentication ---
+  useEffect(() => {
+    const initAuth = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    };
+    initAuth();
+    return onAuthStateChanged(auth, setUser);
+  }, []);
+
+  // --- Auto-Fetch Exchange Rate ---
+  const fetchRate = async () => {
+    setIsRateLoading(true);
+    try {
+        // Using a public API for rates
+        const response = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
+        const data = await response.json();
+        if (data && data.rates && data.rates.CZK) {
+            setExchangeRate(data.rates.CZK);
+            // Also sync to DB for persistence if we are the first one
+            updateRateInDb(data.rates.CZK);
+        }
+    } catch (e) {
+        console.warn("Failed to auto-fetch rate, using DB or default");
+    } finally {
+        setIsRateLoading(false);
+    }
+  };
+
+  useEffect(() => {
+      fetchRate();
+  }, []);
+
+  // --- Data Sync ---
+  useEffect(() => {
+    if (!user) return;
+
+    // Fetch Yachts
+    const q = query(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_YACHTS));
+    const unsubYachts = onSnapshot(q, (snapshot) => {
+      const loadedYachts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setYachts(loadedYachts);
+      setLoading(false);
+    });
+
+    // Fetch Settings (Sync Rate with team)
+    const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SETTINGS, DOC_SETTINGS);
+    const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        // Only update if we haven't manually fetched a fresher one recently? 
+        // Actually, let's trust the DB as the source of truth for the team.
+        setExchangeRate(docSnap.data().rate || 25);
+      }
+    });
+
+    return () => {
+      unsubYachts();
+      unsubSettings();
+    };
+  }, [user]);
+
+  // --- Handlers ---
+
+  const handleSaveYacht = async () => {
+    if (!user) return;
+    if (!formData.name) return;
+
+    const payload = {
+      name: formData.name,
+      link: formData.link,
+      detailsLink: formData.detailsLink,
+      price: parseFloat(formData.price) || 0,
+      charterPack: parseFloat(formData.charterPack) || 0,
+      extras: parseFloat(formData.extras) || 0,
+      updatedAt: serverTimestamp(),
+    };
+
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_YACHTS, editingId), payload);
+      } else {
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_YACHTS), {
+          ...payload,
+          createdAt: serverTimestamp()
+        });
+      }
+      setIsModalOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error("Error saving:", error);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this yacht?")) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_YACHTS, id));
+    } catch (error) {
+      console.error("Error deleting:", error);
+    }
+  };
+
+  const updateRateInDb = async (newRate) => {
+      try {
+        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SETTINGS, DOC_SETTINGS);
+        await setDoc(settingsRef, { rate: parseFloat(newRate) }, { merge: true });
+      } catch (e) { console.error(e); }
+  }
+
+  const handleManualRateChange = (val) => {
+      setExchangeRate(val);
+      // Debounce could be added here
+      updateRateInDb(val);
+  }
+
+  const openEdit = (yacht) => {
+    setFormData({
+      name: yacht.name,
+      link: yacht.link || '',
+      detailsLink: yacht.detailsLink || '',
+      price: yacht.price,
+      charterPack: yacht.charterPack,
+      extras: yacht.extras
+    });
+    setEditingId(yacht.id);
+    setIsModalOpen(true);
+  };
+
+  const openNew = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const resetForm = () => {
+    setFormData({ name: '', link: '', detailsLink: '', price: '', charterPack: '', extras: '' });
+    setEditingId(null);
+  };
+
+  // --- Calculations ---
+  const eurToCzk = (eur) => (eur * exchangeRate);
+
+  const filteredYachts = useMemo(() => {
+    return yachts.filter(y => 
+      y.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [yachts, searchTerm]);
+
+  // --- Render ---
+
+  if (!user) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white gap-4">
+      <div className="relative w-16 h-16">
+        <div className="absolute inset-0 border-4 border-cyan-500/30 rounded-full"></div>
+        <div className="absolute inset-0 border-4 border-cyan-400 rounded-full border-t-transparent animate-spin"></div>
+      </div>
+      <div className="text-cyan-400 font-mono text-sm animate-pulse">INITIALIZING SYSTEMS...</div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-[#0f172a] to-slate-950 text-slate-200 font-sans selection:bg-cyan-500/30 selection:text-cyan-200 pb-20">
+      
+      {/* Ambient Background Glows */}
+      <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-purple-600/20 rounded-full blur-[120px] opacity-50"></div>
+        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] bg-cyan-600/20 rounded-full blur-[120px] opacity-40"></div>
+      </div>
+
+      {/* Navbar */}
+      <nav className="sticky top-0 z-40 border-b border-white/10 bg-slate-900/80 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-20 items-center">
+            
+            {/* Logo Area */}
+            <div className="flex items-center gap-3 group cursor-default">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-xl blur opacity-40 group-hover:opacity-75 transition-opacity duration-500"></div>
+                <div className="relative bg-slate-900 p-2.5 rounded-xl border border-white/10">
+                  <Anchor className="text-cyan-400 h-6 w-6 transform group-hover:rotate-12 transition-transform duration-500" />
+                </div>
+              </div>
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-white">
+                  YACHT<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">MASTER</span>
+                </h1>
+                <p className="text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase">Fleet Command</p>
+              </div>
+            </div>
+            
+            {/* Controls */}
+            <div className="flex items-center gap-6">
+              
+              {/* Live Rate Ticker */}
+              <div className="hidden md:flex flex-col items-end">
+                <div className="flex items-center gap-2 text-xs font-bold text-cyan-300/70 uppercase tracking-wider mb-1">
+                   <TrendingUp size={12} />
+                   Exchange Rate
+                   <button onClick={fetchRate} className={`hover:text-white transition-colors ${isRateLoading ? 'animate-spin' : ''}`}>
+                     <RefreshCw size={12} />
+                   </button>
+                </div>
+                <div className="flex items-center bg-white/5 rounded-lg p-1 border border-white/10 hover:border-cyan-500/50 transition-colors">
+                  <span className="px-2 text-slate-400 text-sm">€1 =</span>
+                  <input 
+                    type="number" 
+                    step="0.1"
+                    className="w-16 bg-transparent text-right text-lg font-bold text-white focus:outline-none"
+                    value={exchangeRate}
+                    onChange={(e) => handleManualRateChange(e.target.value)}
+                  />
+                  <span className="px-2 text-cyan-400 font-bold text-sm">CZK</span>
+                </div>
+              </div>
+
+              <div className="h-10 w-px bg-white/10 mx-2 hidden md:block"></div>
+
+              <Button variant="primary" icon={Plus} onClick={openNew}>
+                New Vessel
+              </Button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Interface */}
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+        
+        {/* Controller Bar (Pax + Search) */}
+        <GlassCard className="p-4 md:p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                
+                {/* Dynamic Pax Splitter */}
+                <div className="flex-1">
+                    <label className="flex items-center gap-2 text-xs font-bold text-cyan-300 uppercase tracking-widest mb-3">
+                        <Users size={14} />
+                        Split Calculator
+                    </label>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3 bg-slate-950/50 p-1.5 rounded-xl border border-white/10">
+                            <button 
+                                onClick={() => setPax(p => Math.max(1, p - 1))}
+                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-cyan-500/20 hover:text-cyan-300 transition-colors text-slate-400"
+                            >
+                                <Minus size={18} />
+                            </button>
+                            <div className="w-16 text-center">
+                                <span className="text-2xl font-black text-white">{pax}</span>
+                                <p className="text-[9px] text-slate-500 uppercase font-bold">Persons</p>
+                            </div>
+                            <button 
+                                onClick={() => setPax(p => p + 1)}
+                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-cyan-500/20 hover:text-cyan-300 transition-colors text-slate-400"
+                            >
+                                <UserPlus size={18} />
+                            </button>
+                        </div>
+                        
+                        <div className="hidden sm:block flex-1">
+                             <input 
+                                type="range" 
+                                min="1" 
+                                max="16" 
+                                value={pax} 
+                                onChange={(e) => setPax(parseInt(e.target.value))}
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400"
+                            />
+                            <div className="flex justify-between text-[10px] text-slate-600 font-mono mt-1 px-1">
+                                <span>1</span>
+                                <span>8</span>
+                                <span>16</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Search Box */}
+                <div className="w-full md:w-1/3">
+                    <label className="flex items-center gap-2 text-xs font-bold text-purple-300 uppercase tracking-widest mb-3">
+                        <Search size={14} />
+                        Filter Fleet
+                    </label>
+                    <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                             <Search className="h-5 w-5 text-slate-500 group-focus-within:text-purple-400 transition-colors" />
+                        </div>
+                        <input
+                            type="text"
+                            className="block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-slate-950/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                            placeholder="Find a boat..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+            </div>
+        </GlassCard>
+
+        {/* Main Data Grid */}
+        <div className="overflow-x-auto rounded-2xl border border-white/10 shadow-2xl bg-slate-900/40 backdrop-blur-sm">
+            <table className="min-w-full text-left">
+              <thead>
+                <tr className="bg-white/5 border-b border-white/10">
+                  <th className="sticky left-0 z-20 bg-slate-900/95 backdrop-blur px-6 py-5 text-xs font-extrabold text-slate-400 uppercase tracking-wider w-64 border-r border-white/10">
+                    Vessel Info
+                  </th>
+                  <th className="px-4 py-5 text-right text-xs font-extrabold text-slate-500 uppercase tracking-wider w-32">Boat Price</th>
+                  <th className="px-4 py-5 text-right text-xs font-extrabold text-slate-500 uppercase tracking-wider w-32">Charter Pack</th>
+                  <th className="px-4 py-5 text-right text-xs font-extrabold text-slate-500 uppercase tracking-wider w-32">Extras</th>
+                  <th className="px-4 py-5 text-right text-xs font-extrabold text-cyan-400 uppercase tracking-wider w-40 bg-cyan-500/5">
+                     <span className="flex items-center justify-end gap-1"><DollarSign size={12}/> Total (EUR)</span>
+                  </th>
+                  
+                  {/* Dynamic Split Column */}
+                  <th className="px-4 py-5 text-center w-56 bg-purple-500/5 border-l border-white/5">
+                       <div className="flex flex-col items-center">
+                           <span className="text-xs font-extrabold text-purple-300 uppercase tracking-wider flex items-center gap-1">
+                               <Users size={12}/> Split ({pax} Pax)
+                           </span>
+                       </div>
+                  </th>
+
+                  <th className="px-6 py-5 text-right bg-slate-900/30"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredYachts.length === 0 ? (
+                   <tr>
+                     <td colSpan="11" className="px-6 py-20 text-center text-slate-500">
+                       <Wind className="mx-auto h-16 w-16 text-slate-700 mb-4 animate-pulse" />
+                       <p className="text-lg font-medium text-slate-400">The harbor is empty.</p>
+                       <Button variant="secondary" onClick={openNew} className="mt-4">Add your first yacht</Button>
+                     </td>
+                   </tr>
+                ) : (
+                  filteredYachts.map((yacht) => {
+                    const totalEur = yacht.price + yacht.charterPack + yacht.extras;
+                    const perPersonEur = totalEur / pax;
+                    const perPersonCzk = eurToCzk(perPersonEur);
+                    
+                    return (
+                      <tr key={yacht.id} className="group hover:bg-white/[0.02] transition-colors">
+                        {/* Sticky Column: Name */}
+                        <td className="sticky left-0 z-10 bg-slate-900/95 border-r border-white/5 px-6 py-4 group-hover:bg-slate-800/95 transition-colors">
+                          <div className="flex flex-col">
+                            <div className="font-bold text-white text-lg truncate tracking-tight flex items-center gap-2">
+                              {yacht.link ? (
+                                <a href={yacht.link} target="_blank" rel="noreferrer" className="hover:text-cyan-400 transition-colors flex items-center gap-2">
+                                  {yacht.name}
+                                  <span className="opacity-0 group-hover:opacity-100 text-slate-500 text-[10px] transition-opacity">↗</span>
+                                </a>
+                              ) : yacht.name}
+                            </div>
+                            {yacht.detailsLink && (
+                              <a href={yacht.detailsLink} target="_blank" rel="noreferrer" className="text-xs font-mono text-slate-500 hover:text-cyan-300 transition-colors mt-1 flex items-center gap-1">
+                                View Specs
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                        
+                        <td className="px-4 py-4 text-slate-400 text-right font-mono text-sm group-hover:text-slate-200 transition-colors">{formatCurrency(yacht.price)}</td>
+                        <td className="px-4 py-4 text-slate-400 text-right font-mono text-sm group-hover:text-slate-200 transition-colors">{formatCurrency(yacht.charterPack)}</td>
+                        <td className="px-4 py-4 text-slate-400 text-right font-mono text-sm group-hover:text-slate-200 transition-colors">{formatCurrency(yacht.extras)}</td>
+                        
+                        {/* Total EUR */}
+                        <td className="px-4 py-4 text-right bg-cyan-500/[0.02]">
+                            <div className="font-mono font-bold text-cyan-400 text-base shadow-cyan-500/50 drop-shadow-sm">
+                                {formatCurrency(totalEur)}
+                            </div>
+                        </td>
+
+                        {/* Split Dynamic */}
+                        <td className="px-4 py-4 bg-purple-500/[0.02] border-l border-white/5">
+                            <div className="flex flex-col items-center gap-1">
+                                <div className="text-xs text-slate-400 font-mono">{formatCurrency(perPersonEur)} <span className="text-[9px] text-slate-600">EUR</span></div>
+                                <div className="text-lg font-black text-white font-mono bg-white/5 px-3 py-1 rounded-md border border-white/10 shadow-inner">
+                                    {formatCurrency(perPersonCzk, 'CZK')}
+                                </div>
+                            </div>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                            <Button variant="icon" onClick={() => openEdit(yacht)}>
+                                <Edit2 size={16} />
+                            </Button>
+                            <button 
+                                onClick={() => handleDelete(yacht.id)}
+                                className="p-2 rounded-full bg-white/5 hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+        </div>
+      </main>
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingId ? "Edit Vessel" : "Commission Vessel"}
+      >
+        <div className="space-y-6">
+          <Input 
+            label="Vessel Name" 
+            placeholder="e.g. Bavaria 46 Cataleya"
+            value={formData.name} 
+            onChange={(v) => setFormData({...formData, name: v})} 
+          />
+          
+          <div className="grid grid-cols-2 gap-4">
+             <Input 
+              label="Tech Specs URL" 
+              placeholder="https://..."
+              value={formData.detailsLink} 
+              onChange={(v) => setFormData({...formData, detailsLink: v})} 
+            />
+            <Input 
+              label="Booking URL" 
+              placeholder="https://..."
+              value={formData.link} 
+              onChange={(v) => setFormData({...formData, link: v})} 
+            />
+          </div>
+
+          <div className="bg-slate-950/50 p-4 rounded-xl border border-white/5">
+             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <DollarSign size={14} /> Financials (EUR)
+             </label>
+             <div className="grid grid-cols-3 gap-4">
+               <Input 
+                label="Base Price" 
+                type="number"
+                prefix="€"
+                placeholder="0"
+                value={formData.price} 
+                onChange={(v) => setFormData({...formData, price: v})} 
+              />
+               <Input 
+                label="Logbook / Pack" 
+                type="number"
+                prefix="€"
+                placeholder="0"
+                value={formData.charterPack} 
+                onChange={(v) => setFormData({...formData, charterPack: v})} 
+              />
+               <Input 
+                label="Extras" 
+                type="number"
+                prefix="€"
+                placeholder="0"
+                value={formData.extras} 
+                onChange={(v) => setFormData({...formData, extras: v})} 
+              />
+             </div>
+          </div>
+
+          <div className="pt-4 flex items-center justify-end gap-3">
+            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleSaveYacht} icon={Save}>
+              {editingId ? "Save Changes" : "AddTo Fleet"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
