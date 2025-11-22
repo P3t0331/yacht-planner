@@ -182,6 +182,21 @@ const GlobalStyles = () => (
       100% { background-color: #ef4444; filter: invert(0); }
     }
 
+    /* WIN SEQUENCE ANIMATIONS */
+    @keyframes cash-zoom {
+      0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+      60% { transform: scale(1.2) rotate(10deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+
+    @keyframes sink-ship {
+      0% { transform: rotate(0deg) translateY(0); }
+      20% { transform: rotate(-5deg) translateY(10px); }
+      40% { transform: rotate(10deg) translateY(20px); }
+      50% { transform: rotate(-15deg) translateY(40px); }
+      100% { transform: rotate(45deg) translateY(100vh); opacity: 0; }
+    }
+
     /* --- APPLYING ANIMATIONS --- */
 
     /* Base State: Everything is moving */
@@ -237,6 +252,14 @@ const GlobalStyles = () => (
     .reel-blur {
       filter: blur(4px);
       transform: scale(1.2) translateY(20px);
+    }
+    
+    .cash-explode {
+      animation: cash-zoom 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+    }
+    
+    .sinking-ship {
+      animation: sink-ship 4s ease-in forwards !important;
     }
   `}</style>
 );
@@ -318,6 +341,7 @@ const SlotMachine = ({ onWin }) => {
   const [chaosMode, setChaosMode] = useState(false);
   const [cooldown, setCooldown] = useState(false);
   const [spinCount, setSpinCount] = useState(0);
+  const [winPhase, setWinPhase] = useState('idle'); // idle, cash, yacht, sinking
   
   const symbols = ['🚢', '💀', '⚓', '💰'];
   const [reels, setReels] = useState(['⚓', '⚓', '⚓']);
@@ -339,7 +363,6 @@ const SlotMachine = ({ onWin }) => {
         ];
     }
 
-    // Animation Loop to simulate spinning reels
     const animationInterval = setInterval(() => {
        setReels([
           symbols[Math.floor(Math.random() * symbols.length)],
@@ -355,9 +378,29 @@ const SlotMachine = ({ onWin }) => {
       setSpinCount(prev => prev + 1);
       
       if (result[0] === '🚢' && result[1] === '🚢' && result[2] === '🚢') {
-        setMessage("PERMISSION GRANTED!");
-        setTimeout(onWin, 1000);
+        // --- WIN SEQUENCE START ---
+        setMessage("JACKPOT!");
+        setWinPhase('cash');
+        
+        // Phase 2: Show Yacht (after 2.5s of cash)
+        setTimeout(() => {
+            setWinPhase('yacht');
+            setMessage("YOUR NEW YACHT!");
+        }, 2500);
+
+        // Phase 3: Sink the Yacht (after 1.5s of admiring it)
+        setTimeout(() => {
+            setWinPhase('sinking');
+            setMessage("OH NO! ABANDON SHIP!");
+        }, 4000);
+
+        // Phase 4: Enter App (after 3.5s of sinking)
+        setTimeout(() => {
+            onWin();
+        }, 7500);
+
       } else {
+        // --- LOSS SEQUENCE ---
         setMessage("ACCESS DENIED!");
         setChaosMode(true);
         setCooldown(true);
@@ -371,6 +414,79 @@ const SlotMachine = ({ onWin }) => {
     }, 2000); 
   };
 
+  // Render different content based on Win Phase
+  const renderContent = () => {
+      if (winPhase === 'cash') {
+          return (
+              <div className="text-center cash-explode">
+                  <div className="text-9xl mb-4">💰</div>
+                  <h1 className="text-6xl font-black text-green-400 drop-shadow-lg">€10,000,000</h1>
+                  <p className="text-2xl text-white font-bold mt-4">INSTANT CASH PRIZE!</p>
+              </div>
+          );
+      }
+      
+      if (winPhase === 'yacht') {
+          return (
+              <div className="text-center cash-explode">
+                  <div className="text-9xl mb-4">🛥️</div>
+                  <h1 className="text-5xl font-black text-amber-400 drop-shadow-lg">S.S. TYCOON</h1>
+                  <p className="text-xl text-white mt-4">CONGRATULATIONS CAPTAIN!</p>
+              </div>
+          );
+      }
+
+      if (winPhase === 'sinking') {
+          return (
+              <div className="text-center">
+                  <div className="text-9xl mb-4 sinking-ship inline-block">🛥️</div>
+                  <h1 className="text-5xl font-black text-red-500 drop-shadow-lg animate-pulse">MAYDAY! MAYDAY!</h1>
+                  <p className="text-xl text-white mt-4">WE ARE GOING DOWN!</p>
+              </div>
+          );
+      }
+
+      // Default Slot Machine
+      return (
+        <>
+            <div className="bg-slate-800 p-6 rounded-2xl border-4 border-amber-600 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-white/20 animate-pulse"></div>
+                <div className="flex gap-4 mb-6 justify-center">
+                {reels.map((symbol, i) => (
+                    <div key={i} className="w-24 h-32 bg-slate-950 border border-slate-700 rounded-lg flex items-center justify-center text-6xl overflow-hidden relative shadow-inner">
+                    <div className={`transition-all duration-100 ${spinning ? 'reel-blur' : ''}`}>
+                        {symbol}
+                    </div>
+                    </div>
+                ))}
+                </div>
+                
+                <div className="text-center">
+                <button 
+                    onClick={spin} 
+                    disabled={spinning || cooldown}
+                    className={`w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all 
+                    ${cooldown 
+                        ? 'bg-red-600 text-white cursor-not-allowed' 
+                        : 'bg-gradient-to-b from-amber-400 to-amber-600 text-black hover:scale-105 active:scale-95'
+                    } shadow-lg`}
+                >
+                    {cooldown ? "SYSTEM LOCKED (3s)" : spinning ? "SPINNING..." : "SPIN"}
+                </button>
+                </div>
+            </div>
+
+            <div className="mt-8 font-mono text-xl font-bold text-amber-400 animate-pulse">
+                {message}
+            </div>
+            
+            <div className="mt-4 text-xs text-slate-600">
+                {spinCount < 3 ? `Authentication attempt ${spinCount + 1}/4` : "System Override Ready"}
+            </div>
+        </>
+      );
+  };
+
   return (
     <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-900 text-white slot-machine-overlay h-screen w-screen overflow-hidden ${chaosMode ? 'chaos-mode' : ''}`}>
       <GlobalStyles />
@@ -379,40 +495,7 @@ const SlotMachine = ({ onWin }) => {
         <p className="text-sm text-slate-400 font-mono tracking-widest uppercase">Security Clearance Required</p>
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-2xl border-4 border-amber-600 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-white/20 animate-pulse"></div>
-        <div className="flex gap-4 mb-6 justify-center">
-          {reels.map((symbol, i) => (
-            <div key={i} className="w-24 h-32 bg-slate-950 border border-slate-700 rounded-lg flex items-center justify-center text-6xl overflow-hidden relative shadow-inner">
-               <div className={`transition-all duration-100 ${spinning ? 'reel-blur' : ''}`}>
-                 {symbol}
-               </div>
-            </div>
-          ))}
-        </div>
-        
-        <div className="text-center">
-          <button 
-            onClick={spin} 
-            disabled={spinning || cooldown}
-            className={`w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all 
-              ${cooldown 
-                ? 'bg-red-600 text-white cursor-not-allowed' 
-                : 'bg-gradient-to-b from-amber-400 to-amber-600 text-black hover:scale-105 active:scale-95'
-              } shadow-lg`}
-          >
-            {cooldown ? "SYSTEM LOCKED (3s)" : spinning ? "SPINNING..." : "SPIN"}
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-8 font-mono text-xl font-bold text-amber-400 animate-pulse">
-        {message}
-      </div>
-      
-      <div className="mt-4 text-xs text-slate-600">
-        {spinCount < 3 ? `Authentication attempt ${spinCount + 1}/4` : "System Override Ready"}
-      </div>
+      {renderContent()}
     </div>
   );
 };
