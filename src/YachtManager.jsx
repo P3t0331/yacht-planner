@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
+import { useParams, useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
-  getAuth, 
   signInAnonymously, 
   onAuthStateChanged, 
-  signInWithCustomToken,
+  signInWithCustomToken, 
   signInWithEmailAndPassword,
   signOut
 } from 'firebase/auth';
 import { 
-  getFirestore, 
   collection, 
   doc, 
   addDoc, 
@@ -31,8 +30,6 @@ import {
   TrendingUp, 
   Search,
   RefreshCw,
-  Wind,
-  Zap,
   Minus,
   UserPlus,
   Image as ImageIcon,
@@ -42,166 +39,59 @@ import {
   AlertCircle,
   Ship,
   Navigation,
-  Compass,
   Lock,
-  LogOut,
-  User
+  User,
+  Check,
+  ArrowLeft,
+  QrCode,
+  CreditCard,
+  Banknote,
+  CheckCircle
 } from 'lucide-react';
 
-// --- Firebase Configuration ---
-let firebaseConfig;
-let appId;
-
-// 1. AI / Sandbox Environment (Automatic)
-if (typeof __firebase_config !== 'undefined') {
-  try {
-    firebaseConfig = JSON.parse(__firebase_config);
-    appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-  } catch (e) {
-    console.error("Error parsing config", e);
-  }
-} 
-
-// 2. Production / Vercel Environment (Manual)
-// NOTE: Uncomment this block when deploying to Vercel to read from .env
-
-if (!firebaseConfig) {
-  try {
-    firebaseConfig = {
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: import.meta.env.VITE_FIREBASE_APP_ID
-    };
-    appId = 'yacht-manager-public'; 
-  } catch (e) {
-    console.warn("Vite env vars not found, skipping production config.");
-  }
-}
-
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// --- Constants & Helpers ---
-const COLLECTION_YACHTS = 'yachts';
-const COLLECTION_SETTINGS = 'settings';
-const DOC_SETTINGS = 'global_settings';
-
-const formatCurrency = (amount, currency = 'EUR') => {
-  if (amount === undefined || amount === null) return '-';
-  return new Intl.NumberFormat(currency === 'CZK' ? 'cs-CZ' : 'en-IE', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
-
-// Helper to clean price strings like "3 459,00 €" -> 3459.00
-const parsePrice = (str) => {
-  if (!str) return 0;
-  // Remove all non-numeric chars except comma and dot
-  let clean = str.replace(/[^\d,.]/g, '');
-  // Replace comma with dot for float parsing if comma is decimal separator
-  clean = clean.replace(',', '.');
-  // If multiple dots exist (thousands separators), keep only the last one
-  return parseFloat(clean) || 0;
-};
-
-// --- Components ---
-
-const GlassCard = ({ children, className = "" }) => (
-  <div className={`bg-slate-900/40 backdrop-blur-md border border-amber-500/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] rounded-2xl ${className}`}>
-    {children}
-  </div>
-);
-
-const Button = ({ children, onClick, variant = 'primary', className = "", icon: Icon, disabled }) => {
-  const baseStyles = "inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed";
-  const variants = {
-    primary: "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 border border-amber-400/20",
-    secondary: "bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/30 backdrop-blur-sm",
-    danger: "bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg shadow-red-500/30 hover:shadow-red-500/50",
-    ghost: "text-slate-300 hover:text-white hover:bg-white/5",
-    icon: "p-2 rounded-full bg-white/5 hover:bg-white/20 text-amber-400 hover:text-amber-200 transition-colors",
-  };
-
-  return (
-    <button onClick={onClick} disabled={disabled} className={`${baseStyles} ${variants[variant]} ${className}`}>
-      {Icon && <Icon size={18} className={children ? "mr-2" : ""} />}
-      {children}
-    </button>
-  );
-};
-
-const Input = ({ label, value, onChange, onBlur, type = "text", placeholder, prefix, disabled }) => (
-  <div className="space-y-1.5 group w-full">
-    {label && <label className="block text-xs font-bold text-amber-500/80 uppercase tracking-widest group-focus-within:text-amber-400 transition-colors">{label}</label>}
-    <div className="relative">
-      {prefix && (
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <span className="text-slate-400 font-medium">{prefix}</span>
-        </div>
-      )}
-      <input
-        type={type}
-        disabled={disabled}
-        className={`block w-full rounded-xl bg-slate-950/60 border border-white/10 text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:bg-slate-900/80 transition-all duration-300 py-3 ${prefix ? 'pl-8' : 'pl-4'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-      />
-    </div>
-  </div>
-);
-
-const Modal = ({ isOpen, onClose, title, children, size = "lg" }) => {
-  if (!isOpen) return null;
-  const maxWidth = size === "sm" ? "max-w-sm" : "max-w-lg";
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm">
-      <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="fixed inset-0 bg-black/80 transition-opacity" onClick={onClose}></div>
-        <div className={`relative bg-slate-900 border border-amber-500/20 rounded-3xl shadow-2xl transform transition-all ${maxWidth} w-full overflow-hidden`}>
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500"></div>
-          <div className="p-6 sm:p-8">
-            <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-2">
-              <Compass className="text-amber-500" size={24} />
-              {title}
-            </h3>
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+import { auth, db, appId } from './config/firebase';
+import { COLLECTION_YACHTS, COLLECTION_SETTINGS, DOC_SETTINGS } from './config/constants';
+import { formatCurrency, parsePrice } from './utils/formatters';
+import GlassCard from './components/ui/GlassCard';
+import Button from './components/ui/Button';
+import Input from './components/ui/Input';
+import Modal from './components/ui/Modal';
+import PaymentManager from './components/features/PaymentManager';
 
 // --- Main Application Component ---
 
 export default function YachtManager() {
+  const { tripId } = useParams();
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [isCaptain, setIsCaptain] = useState(false); // Role State
   const [yachts, setYachts] = useState([]);
+  const [tripData, setTripData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exchangeRate, setExchangeRate] = useState(25); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pax, setPax] = useState(8); 
   const [isRateLoading, setIsRateLoading] = useState(false);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [fetchError, setFetchError] = useState(false);
+  const [qrCurrency, setQrCurrency] = useState('EUR'); // 'EUR' or 'CZK'
   
   // Auth Form State
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
+
+  // Trip Settings Form State
+  const [tripSettings, setTripSettings] = useState({
+    confirmedGuests: '',
+    captainIbanEur: '',
+    captainIbanCzk: '',
+    depositAmount: '',
+    finalPaymentAmount: ''
+  });
 
   // Yacht Form State
   const [editingId, setEditingId] = useState(null);
@@ -218,22 +108,27 @@ export default function YachtManager() {
   // --- Authentication ---
   useEffect(() => {
     const initAuth = async () => {
+      // 1. Handle Magic Token (Sandbox/AI Environment)
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        // Default to anonymous (Guest)
-        await signInAnonymously(auth).catch((e) => console.warn("Guest login failed", e));
+        try {
+           await signInWithCustomToken(auth, __initial_auth_token);
+        } catch (e) {
+           console.error("Custom token auth failed", e);
+        }
       }
     };
+    
     initAuth();
     
+    // 2. Listen for Auth Changes
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
       if (currentUser) {
-        // If user is NOT anonymous, they are a Captain (authenticated via email)
+        // User is logged in (Captain or Guest)
+        setUser(currentUser);
         setIsCaptain(!currentUser.isAnonymous);
       } else {
-        setIsCaptain(false);
+        // No user logged in, fallback to Guest
+        signInAnonymously(auth).catch((e) => console.warn("Guest login failed", e));
       }
     });
     return () => unsubscribe();
@@ -260,8 +155,6 @@ export default function YachtManager() {
 
   const handleLogout = async () => {
     await signOut(auth);
-    // Auto re-login as guest handled by the effect if needed, or user stays signed out until page refresh
-    // To ensure guest access immediately after logout:
     signInAnonymously(auth).catch((e) => console.warn("Guest re-login failed", e));
   };
 
@@ -273,7 +166,6 @@ export default function YachtManager() {
         const data = await response.json();
         if (data && data.rates && data.rates.CZK) {
             setExchangeRate(data.rates.CZK);
-            // Only Captains persist the rate to DB for everyone
             if (isCaptain) updateRateInDb(data.rates.CZK);
         }
     } catch (e) {
@@ -289,9 +181,29 @@ export default function YachtManager() {
 
   // --- Data Sync ---
   useEffect(() => {
-    if (!user) return;
+    if (!tripId) return;
 
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_YACHTS));
+    // Fetch Trip Data
+    const tripRef = doc(db, 'artifacts', appId, 'trips', tripId);
+    const unsubTrip = onSnapshot(tripRef, (docSnap) => {
+       if (docSnap.exists()) {
+          const data = docSnap.data();
+          setTripData(data);
+          if (data.confirmedGuests) setPax(data.confirmedGuests);
+          setTripSettings({
+             confirmedGuests: data.confirmedGuests || '',
+             captainIbanEur: data.captainIbanEur || '',
+             captainIbanCzk: data.captainIbanCzk || '',
+             depositAmount: data.depositAmount || '',
+             finalPaymentAmount: data.finalPaymentAmount || ''
+          });
+       } else {
+          navigate('/');
+       }
+    });
+
+    // Fetch Yachts for this Trip
+    const q = query(collection(db, 'artifacts', appId, 'trips', tripId, 'yachts'));
     const unsubYachts = onSnapshot(q, (snapshot) => {
       const loadedYachts = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -309,15 +221,16 @@ export default function YachtManager() {
     });
 
     return () => {
+      unsubTrip();
       unsubYachts();
       unsubSettings();
     };
-  }, [user]);
+  }, [user, tripId]);
 
   // --- Handlers ---
 
   const handleSaveYacht = async () => {
-    if (!isCaptain) return; // Security check
+    if (!isCaptain) return; 
     if (!formData.name) return;
 
     const payload = {
@@ -333,9 +246,9 @@ export default function YachtManager() {
 
     try {
       if (editingId) {
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_YACHTS, editingId), payload);
+        await updateDoc(doc(db, 'artifacts', appId, 'trips', tripId, 'yachts', editingId), payload);
       } else {
-        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_YACHTS), {
+        await addDoc(collection(db, 'artifacts', appId, 'trips', tripId, 'yachts'), {
           ...payload,
           createdAt: serverTimestamp()
         });
@@ -348,17 +261,68 @@ export default function YachtManager() {
   };
 
   const handleDelete = async (id) => {
-    if (!isCaptain) return; // Security check
+    if (!isCaptain) return; 
     if (!confirm("Delete this yacht?")) return;
     try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_YACHTS, id));
+      await deleteDoc(doc(db, 'artifacts', appId, 'trips', tripId, 'yachts', id));
     } catch (error) {
       console.error("Error deleting:", error);
     }
   };
 
+  const handleSelectYacht = async (yachtId) => {
+     if (!isCaptain) return;
+     try {
+        await updateDoc(doc(db, 'artifacts', appId, 'trips', tripId), {
+           selectedYachtId: yachtId === tripData?.selectedYachtId ? null : yachtId
+        });
+     } catch (error) {
+        console.error("Error selecting yacht:", error);
+     }
+  };
+
+  const handleConfirmTrip = async () => {
+    if (!isCaptain || !tripData?.selectedYachtId) return;
+    
+    const selectedYacht = yachts.find(y => y.id === tripData.selectedYachtId);
+    if (!selectedYacht) return;
+
+    const totalCost = selectedYacht.price + selectedYacht.charterPack + selectedYacht.extras;
+    const deposit = totalCost * 0.5;
+    const final = totalCost * 0.5;
+
+    if (!confirm(`Confirm trip with ${selectedYacht.name}? This will set Deposit to €${deposit} and Final Payment to €${final}.`)) return;
+
+    try {
+       await updateDoc(doc(db, 'artifacts', appId, 'trips', tripId), {
+          status: 'confirmed',
+          depositAmount: deposit,
+          finalPaymentAmount: final,
+          confirmedGuests: pax // Lock guest count
+       });
+    } catch (error) {
+       console.error("Error confirming trip:", error);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+     if (!isCaptain) return;
+     try {
+        await updateDoc(doc(db, 'artifacts', appId, 'trips', tripId), {
+           confirmedGuests: parseInt(tripSettings.confirmedGuests) || null,
+           captainIbanEur: tripSettings.captainIbanEur,
+           captainIbanCzk: tripSettings.captainIbanCzk,
+           depositAmount: parseFloat(tripSettings.depositAmount) || 0,
+           finalPaymentAmount: parseFloat(tripSettings.finalPaymentAmount) || 0
+        });
+        setIsSettingsModalOpen(false);
+     } catch (error) {
+        console.error("Error saving settings:", error);
+     }
+  };
+
   const updateRateInDb = async (newRate) => {
-      if (!isCaptain) return; // Security check
+      if (!isCaptain) return; 
       try {
         const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SETTINGS, DOC_SETTINGS);
         await setDoc(settingsRef, { rate: parseFloat(newRate) }, { merge: true });
@@ -545,7 +509,7 @@ export default function YachtManager() {
           <div className="flex justify-between h-20 items-center">
             
             {/* Logo Area */}
-            <div className="flex items-center gap-3 group cursor-default">
+            <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate('/')}>
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full blur opacity-20 group-hover:opacity-50 transition-opacity duration-500"></div>
                 <div className="relative bg-slate-900 p-2.5 rounded-full border border-amber-500/30">
@@ -556,7 +520,14 @@ export default function YachtManager() {
                 <h1 className="text-xl font-black tracking-widest text-white uppercase">
                   Captain's<span className="text-amber-500">Deck</span>
                 </h1>
-                <p className="text-[10px] font-bold text-amber-500/70 tracking-[0.2em] uppercase">Trip Proposal System</p>
+                <p className="text-[10px] font-bold text-amber-500/70 tracking-[0.2em] uppercase">
+                   {tripData?.name || 'Trip Proposal System'}
+                </p>
+                {tripData?.startDate && tripData?.endDate && (
+                  <p className="text-[9px] text-slate-400 font-mono mt-0.5">
+                     {tripData.startDate.toDate().toLocaleDateString()} - {tripData.endDate.toDate().toLocaleDateString()}
+                  </p>
+                )}
               </div>
             </div>
             
@@ -591,16 +562,15 @@ export default function YachtManager() {
               {/* Auth Button or Actions */}
               {isCaptain ? (
                 <div className="flex gap-3">
+                  <Button variant="secondary" onClick={() => navigate('/')} icon={ArrowLeft}>
+                     Dashboard
+                  </Button>
+                  <Button variant="secondary" onClick={() => setIsSettingsModalOpen(true)} icon={Banknote}>
+                     Trip Settings
+                  </Button>
                   <Button variant="primary" icon={Plus} onClick={openNew}>
                     Add Option
                   </Button>
-                  <button 
-                    onClick={handleLogout}
-                    className="p-2.5 rounded-full bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all"
-                    title="Captain Logout"
-                  >
-                    <LogOut size={20} />
-                  </button>
                 </div>
               ) : (
                 <button 
@@ -618,6 +588,14 @@ export default function YachtManager() {
       {/* Main Interface */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
         
+        {/* Trip Status Banner */}
+        {tripData?.status === 'confirmed' && (
+           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex items-center justify-center gap-3 animate-in fade-in slide-in-from-top-4">
+              <CheckCircle className="text-emerald-400" size={24} />
+              <span className="text-emerald-300 font-bold text-lg tracking-wide uppercase">Trip Confirmed</span>
+           </div>
+        )}
+
         {/* Controller Bar (Pax + Search) */}
         <GlassCard className="p-4 md:p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -627,9 +605,10 @@ export default function YachtManager() {
                     <label className="flex items-center gap-2 text-xs font-bold text-amber-500 uppercase tracking-widest mb-3">
                         <Users size={14} />
                         Guest Count
+                        {tripData?.confirmedGuests && <span className="ml-2 px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded text-[10px]">LOCKED</span>}
                     </label>
                     <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-3 bg-slate-950/50 p-1.5 rounded-xl border border-white/10">
+                        <div className={`flex items-center gap-3 bg-slate-950/50 p-1.5 rounded-xl border border-white/10 ${tripData?.confirmedGuests ? 'opacity-50 pointer-events-none' : ''}`}>
                             <button 
                                 onClick={() => setPax(p => Math.max(1, p - 1))}
                                 className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-amber-500/20 hover:text-amber-300 transition-colors text-slate-400"
@@ -648,7 +627,7 @@ export default function YachtManager() {
                             </button>
                         </div>
                         
-                        <div className="hidden sm:block flex-1">
+                        <div className={`hidden sm:block flex-1 ${tripData?.confirmedGuests ? 'opacity-50 pointer-events-none' : ''}`}>
                              <input 
                                 type="range" 
                                 min="1" 
@@ -734,13 +713,19 @@ export default function YachtManager() {
                     const totalEur = yacht.price + yacht.charterPack + yacht.extras;
                     const perPersonEur = totalEur / pax;
                     const perPersonCzk = eurToCzk(perPersonEur);
+                    const isSelected = tripData?.selectedYachtId === yacht.id;
                     
                     return (
-                      <tr key={yacht.id} className="group hover:bg-white/[0.02] transition-colors">
+                      <tr key={yacht.id} className={`group transition-colors ${isSelected ? 'bg-amber-500/10 hover:bg-amber-500/20' : 'hover:bg-white/[0.02]'}`}>
                         
                         {/* Clickable Image Column */}
-                        <td className="sticky left-0 z-10 bg-slate-900/95 border-r border-white/5 px-4 py-4 text-center">
-                           <div className="relative h-20 w-32 rounded-lg bg-slate-800 border border-white/10 mx-auto group-hover:border-amber-500/50 transition-all duration-300 overflow-hidden">
+                        <td className={`sticky left-0 z-10 border-r border-white/5 px-4 py-4 text-center ${isSelected ? 'bg-slate-900/95 shadow-[4px_0_24px_-4px_rgba(245,158,11,0.2)]' : 'bg-slate-900/95'}`}>
+                           <div className={`relative h-20 w-32 rounded-lg bg-slate-800 border mx-auto transition-all duration-300 overflow-hidden ${isSelected ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-white/10 group-hover:border-amber-500/50'}`}>
+                             {isSelected && (
+                                <div className="absolute top-1 right-1 z-20 bg-amber-500 text-slate-900 rounded-full p-0.5 shadow-lg">
+                                   <Check size={12} strokeWidth={4} />
+                                </div>
+                             )}
                              {yacht.imageUrl ? (
                                <a 
                                  href={yacht.imageUrl} 
@@ -810,6 +795,13 @@ export default function YachtManager() {
                         {isCaptain && (
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                              <Button 
+                                variant={isSelected ? "primary" : "secondary"} 
+                                className={isSelected ? "bg-amber-500 text-white" : ""}
+                                onClick={() => handleSelectYacht(yacht.id)}
+                              >
+                                 {isSelected ? "Selected" : "Select"}
+                              </Button>
                               <Button variant="icon" onClick={() => openEdit(yacht)}>
                                   <Edit2 size={16} />
                               </Button>
@@ -829,7 +821,180 @@ export default function YachtManager() {
               </tbody>
             </table>
         </div>
+
+        {/* Payment & QR Section (Visible if Yacht Selected & IBAN set) */}
+        {tripData?.selectedYachtId && (
+           <GlassCard className="p-6 md:p-8 mt-8 border-amber-500/20">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                  <div className="flex items-center gap-4">
+                      <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                        <QrCode className="text-amber-500" />
+                        Payment Details
+                      </h3>
+                      {/* Confirm Trip Button for Captain */}
+                      {isCaptain && tripData.status !== 'confirmed' && (
+                          <Button variant="primary" onClick={handleConfirmTrip} icon={CheckCircle}>
+                              Confirm Trip
+                          </Button>
+                      )}
+                  </div>
+                  
+                  {/* Currency Toggler */}
+                  <div className="flex bg-slate-950 p-1 rounded-lg border border-white/10">
+                      <button 
+                         onClick={() => setQrCurrency('EUR')}
+                         className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${qrCurrency === 'EUR' ? 'bg-amber-500 text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                      >
+                         EUR (€)
+                      </button>
+                      <button 
+                         onClick={() => setQrCurrency('CZK')}
+                         className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${qrCurrency === 'CZK' ? 'bg-amber-500 text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                      >
+                         CZK (Kč)
+                      </button>
+                  </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 {/* Deposit QR */}
+                 {tripData.depositAmount > 0 && (
+                    <div className="bg-white p-4 rounded-xl flex flex-col items-center gap-4">
+                       {qrCurrency === 'EUR' && tripData.captainIbanEur ? (
+                          <>
+                            <QRCodeSVG 
+                                value={`SPD*1.0*ACC:${tripData.captainIbanEur}*AM:${tripData.depositAmount}*CC:EUR*MSG:Deposit ${tripData.name}*`}
+                                size={200}
+                            />
+                            <div className="text-center">
+                                <div className="text-slate-900 font-black text-xl">Deposit: {formatCurrency(tripData.depositAmount)}</div>
+                                <div className="text-slate-500 text-xs font-mono mt-1">Scan to Pay (EUR)</div>
+                            </div>
+                          </>
+                       ) : qrCurrency === 'CZK' && tripData.captainIbanCzk ? (
+                          <>
+                            <QRCodeSVG 
+                                value={`SPD*1.0*ACC:${tripData.captainIbanCzk}*AM:${eurToCzk(tripData.depositAmount).toFixed(0)}*CC:CZK*MSG:Deposit ${tripData.name}*`}
+                                size={200}
+                            />
+                            <div className="text-center">
+                                <div className="text-slate-900 font-black text-xl">Deposit: {formatCurrency(eurToCzk(tripData.depositAmount), 'CZK')}</div>
+                                <div className="text-slate-500 text-xs font-mono mt-1">Scan to Pay (CZK)</div>
+                            </div>
+                          </>
+                       ) : (
+                          <div className="h-[200px] w-[200px] flex items-center justify-center bg-slate-100 text-slate-400 text-sm text-center p-4">
+                             No IBAN for {qrCurrency}
+                          </div>
+                       )}
+                    </div>
+                 )}
+
+                 {/* Final Payment QR */}
+                 {tripData.finalPaymentAmount > 0 && (
+                    <div className="bg-white p-4 rounded-xl flex flex-col items-center gap-4">
+                       {qrCurrency === 'EUR' && tripData.captainIbanEur ? (
+                          <>
+                            <QRCodeSVG 
+                                value={`SPD*1.0*ACC:${tripData.captainIbanEur}*AM:${tripData.finalPaymentAmount}*CC:EUR*MSG:Final ${tripData.name}*`}
+                                size={200}
+                            />
+                            <div className="text-center">
+                                <div className="text-slate-900 font-black text-xl">Final: {formatCurrency(tripData.finalPaymentAmount)}</div>
+                                <div className="text-slate-500 text-xs font-mono mt-1">Scan to Pay (EUR)</div>
+                            </div>
+                          </>
+                       ) : qrCurrency === 'CZK' && tripData.captainIbanCzk ? (
+                          <>
+                            <QRCodeSVG 
+                                value={`SPD*1.0*ACC:${tripData.captainIbanCzk}*AM:${eurToCzk(tripData.finalPaymentAmount).toFixed(0)}*CC:CZK*MSG:Final ${tripData.name}*`}
+                                size={200}
+                            />
+                            <div className="text-center">
+                                <div className="text-slate-900 font-black text-xl">Final: {formatCurrency(eurToCzk(tripData.finalPaymentAmount), 'CZK')}</div>
+                                <div className="text-slate-500 text-xs font-mono mt-1">Scan to Pay (CZK)</div>
+                            </div>
+                          </>
+                       ) : (
+                          <div className="h-[200px] w-[200px] flex items-center justify-center bg-slate-100 text-slate-400 text-sm text-center p-4">
+                             No IBAN for {qrCurrency}
+                          </div>
+                       )}
+                    </div>
+                 )}
+              </div>
+           </GlassCard>
+        )}
+
+        {/* Payment Manager Component */}
+        <PaymentManager tripId={tripId} isCaptain={isCaptain} exchangeRate={exchangeRate} />
+
       </main>
+
+      {/* Trip Settings Modal */}
+      <Modal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        title="Trip Settings"
+        size="lg"
+      >
+         <div className="space-y-6">
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-white/5 space-y-4">
+               <h4 className="text-sm font-bold text-amber-500 uppercase tracking-widest">Guest Configuration</h4>
+               <Input 
+                  label="Confirmed Guest Count"
+                  placeholder="e.g. 8"
+                  type="number"
+                  value={tripSettings.confirmedGuests}
+                  onChange={(v) => setTripSettings({...tripSettings, confirmedGuests: v})}
+                  prefix={<Users size={14} />}
+               />
+               <p className="text-xs text-slate-500">Setting this locks the guest count for all viewers.</p>
+            </div>
+
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-white/5 space-y-4">
+               <h4 className="text-sm font-bold text-amber-500 uppercase tracking-widest">Payment Configuration</h4>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input 
+                      label="Captain's IBAN (EUR)"
+                      placeholder="CZ..."
+                      value={tripSettings.captainIbanEur}
+                      onChange={(v) => setTripSettings({...tripSettings, captainIbanEur: v})}
+                      prefix={<CreditCard size={14} />}
+                  />
+                  <Input 
+                      label="Captain's IBAN (CZK)"
+                      placeholder="CZ..."
+                      value={tripSettings.captainIbanCzk}
+                      onChange={(v) => setTripSettings({...tripSettings, captainIbanCzk: v})}
+                      prefix={<CreditCard size={14} />}
+                  />
+               </div>
+               
+               <div className="grid grid-cols-2 gap-4">
+                  <Input 
+                     label="Deposit Amount (EUR)"
+                     type="number"
+                     value={tripSettings.depositAmount}
+                     onChange={(v) => setTripSettings({...tripSettings, depositAmount: v})}
+                     prefix="€"
+                  />
+                  <Input 
+                     label="Final Payment (EUR)"
+                     type="number"
+                     value={tripSettings.finalPaymentAmount}
+                     onChange={(v) => setTripSettings({...tripSettings, finalPaymentAmount: v})}
+                     prefix="€"
+                  />
+               </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+               <Button variant="secondary" onClick={() => setIsSettingsModalOpen(false)}>Cancel</Button>
+               <Button variant="primary" onClick={handleSaveSettings} icon={Save}>Save Settings</Button>
+            </div>
+         </div>
+      </Modal>
 
       {/* Edit Modal (Protected) */}
       <Modal
