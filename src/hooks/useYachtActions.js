@@ -67,6 +67,17 @@ export function useYachtActions(tripId, isCaptain, tripData) {
         }
     };
 
+    const toggleRecommend = async (yachtId, recommended) => {
+        if (!isCaptain) return;
+        try {
+            await updateDoc(doc(db, 'artifacts', appId, 'trips', tripId, 'yachts', yachtId), {
+                recommended: recommended
+            });
+        } catch (error) {
+            console.error("Error toggling recommendation:", error);
+        }
+    };
+
     const confirmTrip = async (selectedYacht, pax) => {
         if (!isCaptain || !selectedYacht) return;
 
@@ -256,6 +267,7 @@ export function useYachtActions(tripId, isCaptain, tripData) {
         saveYacht,
         deleteYacht,
         selectYacht,
+        toggleRecommend,
         confirmTrip,
         updateTripSettings,
         fetchAaayachtData

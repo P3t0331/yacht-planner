@@ -10,7 +10,8 @@ import {
   Edit2, 
   Trash2,
   MapPin,
-  AlertTriangle
+  AlertTriangle,
+  Star
 } from 'lucide-react';
 import Button from '../ui/Button';
 import { formatCurrency } from '../../utils/formatters';
@@ -24,7 +25,8 @@ export default function YachtTable({
   handleSelectYacht, 
   openEdit, 
   handleDelete, 
-  openNew 
+  openNew,
+  handleToggleRecommend
 }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-white/10 shadow-2xl bg-slate-900/40 backdrop-blur-sm">
@@ -79,12 +81,14 @@ export default function YachtTable({
                 const perPersonCzk = eurToCzk(perPersonEur);
                 const isSelected = tripData?.selectedYachtId === yacht.id;
                 const isOverCapacity = yacht.maxGuests > 0 && pax > yacht.maxGuests;
+                const isRecommended = yacht.recommended || false;
                 
                 return (
                   <tr 
                     key={yacht.id} 
                     className={`group transition-colors ${
                       isSelected ? 'bg-amber-500/10 hover:bg-amber-500/20' : 
+                      isRecommended ? 'bg-yellow-500/5 hover:bg-yellow-500/10 border-l-2 border-yellow-400/50' :
                       isOverCapacity ? 'bg-red-500/5 hover:bg-red-500/10 border-l-4 border-red-500/50' :
                       'hover:bg-white/[0.02]'
                     }`}
@@ -93,11 +97,13 @@ export default function YachtTable({
                     {/* Clickable Image Column */}
                     <td className={`sticky left-0 z-10 border-r border-white/5 px-2 py-2 text-center ${
                       isSelected ? 'bg-slate-900/95 shadow-[4px_0_24px_-4px_rgba(245,158,11,0.2)]' : 
+                      isRecommended ? 'bg-slate-900/95 shadow-[4px_0_12px_-4px_rgba(234,179,8,0.3)]' :
                       isOverCapacity ? 'bg-slate-900/95 shadow-[4px_0_12px_-4px_rgba(239,68,68,0.3)]' :
                       'bg-slate-900/95'
                     }`}>
                        <div className={`relative h-12 w-20 rounded-lg bg-slate-800 border mx-auto transition-all duration-300 overflow-hidden ${
                          isSelected ? 'border-amber-500 ring-2 ring-amber-500/20' : 
+                         isRecommended ? 'border-yellow-400/60 ring-2 ring-yellow-400/30' :
                          isOverCapacity ? 'border-red-500/50 ring-2 ring-red-500/20' :
                          'border-white/10 group-hover:border-amber-500/50'
                        }`}>
@@ -106,7 +112,12 @@ export default function YachtTable({
                                <Check size={10} strokeWidth={4} />
                             </div>
                          )}
-                         {isOverCapacity && (
+                         {isRecommended && (
+                            <div className="absolute top-1 left-1 z-20 bg-yellow-400 text-slate-900 rounded-full p-0.5 shadow-lg animate-pulse">
+                               <Star size={10} strokeWidth={3} fill="currentColor" />
+                            </div>
+                         )}
+                         {isOverCapacity && !isRecommended && (
                             <div className="absolute top-1 left-1 z-20 bg-red-500 text-white rounded-full p-0.5 shadow-lg">
                                <AlertTriangle size={10} strokeWidth={3} />
                             </div>
@@ -234,6 +245,17 @@ export default function YachtTable({
                               </div>
                             )}
                           </div>
+                          <button 
+                              onClick={() => handleToggleRecommend(yacht.id, !isRecommended)}
+                              className={`p-1 rounded-full transition-colors ${
+                                isRecommended 
+                                  ? 'bg-yellow-400/20 text-yellow-400 hover:bg-yellow-400/30' 
+                                  : 'bg-white/5 hover:bg-yellow-400/10 text-slate-500 hover:text-yellow-400'
+                              }`}
+                              title={isRecommended ? "Remove recommendation" : "Recommend to guests"}
+                          >
+                              <Star size={12} fill={isRecommended ? "currentColor" : "none"} />
+                          </button>
                           <Button variant="icon" onClick={() => openEdit(yacht)} className="p-1">
                               <Edit2 size={12} />
                           </Button>

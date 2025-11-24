@@ -41,6 +41,7 @@ export default function YachtManager() {
     saveYacht, 
     deleteYacht, 
     selectYacht, 
+    toggleRecommend,
     confirmTrip, 
     updateTripSettings, 
     fetchAaayachtData 
@@ -154,6 +155,7 @@ export default function YachtManager() {
             openEdit={openEdit}
             handleDelete={deleteYacht}
             openNew={openNew}
+            handleToggleRecommend={toggleRecommend}
         />
 
         <PaymentQrSection 
