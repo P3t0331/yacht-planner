@@ -26,6 +26,8 @@ export function useYachtActions(tripId, isCaptain, tripData) {
             price: parseFloat(formData.price) || 0,
             charterPack: parseFloat(formData.charterPack) || 0,
             extras: parseFloat(formData.extras) || 0,
+            marina: formData.marina || '',
+            maxGuests: parseInt(formData.maxGuests) || 0,
             updatedAt: serverTimestamp(),
         };
 
@@ -185,6 +187,48 @@ export function useYachtActions(tripId, isCaptain, tripData) {
                 }
             }
 
+            // Extract marina location - look for <b>Marína</b> in <p> tags
+            let marina = '';
+            const marinaParagraphs = Array.from(doc.querySelectorAll('p'));
+            const marinaP = marinaParagraphs.find(p => {
+                const bTag = p.querySelector('b');
+                return bTag && (
+                    bTag.textContent.toLowerCase().includes('marína') ||
+                    bTag.textContent.toLowerCase().includes('marina') ||
+                    bTag.textContent.toLowerCase().includes('port')
+                );
+            });
+
+            if (marinaP) {
+                // Extract text after the <b> tag
+                const text = marinaP.textContent;
+                const colonIndex = text.indexOf(':');
+                if (colonIndex !== -1) {
+                    marina = text.substring(colonIndex + 1).trim();
+                }
+            }
+
+            // Extract max guests / capacity - look for dt/dd structure
+            let maxGuests = 0;
+            const dtElements = Array.from(doc.querySelectorAll('dt'));
+            const capacityDt = dtElements.find(dt =>
+                dt.textContent.toLowerCase().includes('počet lůžek') ||
+                dt.textContent.toLowerCase().includes('berths') ||
+                dt.textContent.toLowerCase().includes('guests') ||
+                dt.textContent.toLowerCase().includes('capacity') ||
+                dt.textContent.toLowerCase().includes('lůžek')
+            );
+
+            if (capacityDt) {
+                const ddElement = capacityDt.nextElementSibling;
+                if (ddElement && ddElement.tagName.toLowerCase() === 'dd') {
+                    const numberMatch = ddElement.textContent.match(/(\d+)/);
+                    if (numberMatch) {
+                        maxGuests = parseInt(numberMatch[1]);
+                    }
+                }
+            }
+
             setFormData(prev => ({
                 ...prev,
                 name: name || prev.name,
@@ -192,6 +236,8 @@ export function useYachtActions(tripId, isCaptain, tripData) {
                 detailsLink: techSpecsUrl || prev.detailsLink,
                 price: price || prev.price,
                 charterPack: charterPack || prev.charterPack,
+                marina: marina || prev.marina,
+                maxGuests: maxGuests || prev.maxGuests,
                 link: url
             }));
 

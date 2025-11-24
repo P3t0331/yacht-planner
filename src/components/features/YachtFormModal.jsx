@@ -6,7 +6,9 @@ import {
   Wand2, 
   Link as LinkIcon, 
   DollarSign, 
-  Save 
+  Save,
+  Anchor,
+  Users
 } from 'lucide-react';
 import Modal from '../ui/Modal';
 import Input from '../ui/Input';
@@ -29,7 +31,9 @@ export default function YachtFormModal({
     imageUrl: '',
     price: '',
     charterPack: '',
-    extras: ''
+    extras: '',
+    marina: '',
+    maxGuests: ''
   });
 
   useEffect(() => {
@@ -37,7 +41,7 @@ export default function YachtFormModal({
         if (initialData) {
             setFormData(initialData);
         } else {
-            setFormData({ name: '', link: '', detailsLink: '', imageUrl: '', price: '', charterPack: '', extras: '' });
+            setFormData({ name: '', link: '', detailsLink: '', imageUrl: '', price: '', charterPack: '', extras: '', marina: '', maxGuests: '' });
         }
     }
   }, [isOpen, initialData]);
@@ -102,6 +106,25 @@ export default function YachtFormModal({
                 onChange={(v) => setFormData({...formData, name: v})} 
                 disabled={isFetchingData}
               />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input 
+                  label="Marina/Port" 
+                  placeholder="e.g. Split, Croatia"
+                  value={formData.marina} 
+                  onChange={(v) => setFormData({...formData, marina: v})} 
+                  prefix={<Anchor size={14} />}
+                  disabled={isFetchingData}
+                />
+                <Input 
+                  label="Max Guests" 
+                  type="number"
+                  placeholder="e.g. 8"
+                  value={formData.maxGuests} 
+                  onChange={(v) => setFormData({...formData, maxGuests: v})} 
+                  prefix={<Users size={14} />}
+                  disabled={isFetchingData}
+                />
+              </div>
            </div>
         </div>
 

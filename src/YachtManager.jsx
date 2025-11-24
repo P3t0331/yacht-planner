@@ -72,7 +72,9 @@ export default function YachtManager() {
       imageUrl: yacht.imageUrl || '',
       price: yacht.price,
       charterPack: yacht.charterPack,
-      extras: yacht.extras
+      extras: yacht.extras,
+      marina: yacht.marina || '',
+      maxGuests: yacht.maxGuests || ''
     });
     setEditingId(yacht.id);
     setIsModalOpen(true);
